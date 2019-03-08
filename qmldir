@@ -1,2 +1,2 @@
 module Crimson.Views
-plugin quickviews
+plugin declarative_quickviews
