@@ -27,8 +27,11 @@ signals:
     void delegateChanged();
 
 protected:
+    virtual void componentComplete() override;
     virtual void updatePolish() override;
 
 private:
+    friend class JustifyViewPrivate;
+
     JustifyViewPrivate *d = nullptr;
 };
