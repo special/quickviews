@@ -10,6 +10,9 @@ public:
     JustifyViewPrivate * const view;
     const QString value;
 
+    // XXX part of section delegate
+    double height = 0;
+
     int viewStart = -1;
     int count = 0;
 

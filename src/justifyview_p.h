@@ -31,6 +31,7 @@ public:
     void layout();
     bool applyPendingChanges();
     void validateSections();
+    bool refill();
     void clear();
 
     QQuickItem *createItem(int index);

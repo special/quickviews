@@ -200,24 +200,39 @@ void JustifyViewPrivate::layout()
         return;
 
     applyPendingChanges();
-    // XXX refill?
     validateSections();
 
     QRectF visibleArea(q->contentX(), q->contentY(), q->width(), q->height());
-
-    qCDebug(lcLayout) << "layout" << model->count() << "items in visible area" << visibleArea;
+    qCDebug(lcLayout) << "layout area" << visibleArea;
 
     qreal x = 0, y = 0;
-    for (int i = 0; i < model->count(); i++) {
-        // XXX visibleArea
+    for (int s = 0; ; s++) {
+        if (s >= sections.size()) {
+            if (!refill())
+                break;
+        }
 
-        // XXX what if it already existed?
-        QQuickItem *item = createItem(i);
-        if (!item)
-            break;
+        FlexSection *section = sections[s];
+        // XXX
+        section->height = 50 * section->count;
 
-        item->setPosition(QPointF(x, y));
-        y += item->height();
+        if (!visibleArea.intersects(QRectF(x, y, visibleArea.width()-x, section->height))) {
+            qCDebug(lcLayout) << "section" << s << "y" << y << "h" << section->height << "not visible";
+            if (y > visibleArea.bottom())
+                break;
+            y += section->height;
+            continue;
+        }
+
+        qCDebug(lcLayout) << "section" << s << "visible for" << y << section->height;
+        for (int i = section->viewStart; i < section->viewStart + section->count; i++) {
+            QQuickItem *item = createItem(i);
+            if (!item)
+                return;
+
+            item->setPosition(QPointF(x, y));
+            y += 50; // item->height();
+        }
     }
 }
 
@@ -292,6 +307,7 @@ bool JustifyViewPrivate::applyPendingChanges()
                 section->viewStart = index + from;
                 sections.insert(s, section);
             }
+            qCDebug(lcView) << "inserting to section" << section << "at" << section->viewStart << "from" << index - section->viewStart << "count" << count - from;
 
             if (createdSection)
                 section->insert(0, count - from);
@@ -357,6 +373,7 @@ bool JustifyViewPrivate::applyPendingChanges()
         }
     }
 
+    pendingChanges.clear();
     return true;
 }
 
@@ -383,6 +400,28 @@ void JustifyViewPrivate::validateSections()
     }
 }
 
+bool JustifyViewPrivate::refill()
+{
+    FlexSection *section = sections.isEmpty() ? nullptr : sections.last();
+    int lastIndex = section ? section->mapToView(section->count - 1) : -1;
+
+    bool sectionAdded = false;
+    for (int i = lastIndex+1; i < model->count(); i++) {
+        QString value = sectionValue(i);
+        if (!section || value != section->value) {
+            if (sectionAdded)
+                break;
+            section = new FlexSection(this, value);
+            section->viewStart = i;
+            sections.append(section);
+            sectionAdded = true;
+        }
+        section->insert(section->count, 1);
+    }
+
+    return sectionAdded;
+}
+
 QQuickItem *JustifyViewPrivate::createItem(int index)
 {
     QObject *object = model->object(index, QQmlIncubator::AsynchronousIfNested);
@@ -399,6 +438,7 @@ QQuickItem *JustifyViewPrivate::createItem(int index)
     }
 
     qCDebug(lcDelegate) << "created index" << index << item;
+    delegateValidated = true;
     return item;
 }
 
