@@ -6,6 +6,8 @@
 #include <QtQml/private/qqmlchangeset_p.h>
 #include <QtQml/private/qqmlguard_p.h>
 
+class FlexSection;
+
 class JustifyViewPrivate : public QObject
 {
     Q_OBJECT
@@ -20,13 +22,20 @@ public:
 
     QQmlChangeSet pendingChanges;
 
+    QList<FlexSection*> sections;
+    QString sectionRole;
+
     JustifyViewPrivate(JustifyView *q);
     virtual ~JustifyViewPrivate();
 
     void layout();
+    bool applyPendingChanges();
+    void validateSections();
     void clear();
 
     QQuickItem *createItem(int index);
+
+    QString sectionValue(int index) const;
 
 public slots:
     void modelUpdated(const QQmlChangeSet &changes, bool reset);

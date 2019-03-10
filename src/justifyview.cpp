@@ -1,4 +1,5 @@
 #include "justifyview_p.h"
+#include "flexsection.h"
 #include <QtQml>
 #include <QLoggingCategory>
 #include <QQmlComponent>
@@ -116,6 +117,21 @@ void JustifyView::setDelegate(QQmlComponent *delegate)
     emit delegateChanged();
 }
 
+QString JustifyView::sectionRole() const
+{
+    return d->sectionRole;
+}
+
+void JustifyView::setSectionRole(const QString &role)
+{
+    if (d->sectionRole == role)
+        return;
+    d->sectionRole = role;
+    d->clear();
+    polish();
+    emit sectionRoleChanged();
+}
+
 void JustifyView::updatePolish()
 {
     QQuickFlickable::updatePolish();
@@ -183,11 +199,9 @@ void JustifyViewPrivate::layout()
     if (!q->isComponentComplete())
         return;
 
-    // XXX init model
-    if (!pendingChanges.isEmpty()) {
-        qCDebug(lcLayout) << "layout: apply changes" << pendingChanges;
-        pendingChanges.clear();
-    }
+    applyPendingChanges();
+    // XXX refill?
+    validateSections();
 
     QRectF visibleArea(q->contentX(), q->contentY(), q->width(), q->height());
 
@@ -204,6 +218,168 @@ void JustifyViewPrivate::layout()
 
         item->setPosition(QPointF(x, y));
         y += item->height();
+    }
+}
+
+bool JustifyViewPrivate::applyPendingChanges()
+{
+    if (pendingChanges.isEmpty())
+        return false;
+
+    for (const auto &remove : pendingChanges.removes()) {
+        int first = remove.start();
+        int count = remove.count;
+
+        for (FlexSection *section : sections) {
+            if (!count) {
+                section->viewStart -= remove.count;
+                continue;
+            }
+
+            int sectionFirst = section->mapToSection(first);
+            if (sectionFirst < 0)
+                continue;
+            int sectionCount = std::min(count, section->count - sectionFirst);
+
+            section->remove(sectionFirst, sectionCount);
+            section->viewStart -= first - remove.start();
+
+            first += sectionCount;
+            count -= sectionCount;
+        }
+    }
+
+    for (const auto &insert : pendingChanges.inserts()) {
+        int index = insert.start();
+        int count = insert.count;
+
+        for (int s = 0; s < sections.size(); s++) {
+            FlexSection *section = sections[s];
+            if (section->viewStart > index + count) {
+                section->viewStart += count;
+                continue;
+            } else if (index < section->viewStart) {
+                continue;
+            }
+
+            bool createdSection = false;
+            int from = 0;
+            for (int i = 0; i < count; i++) {
+                QString value = sectionValue(index + i);
+                if (value == section->value)
+                    continue;
+
+                if (!createdSection && index != section->viewStart + section->count) {
+                    // Split original section before inserting
+                    FlexSection *suffix = new FlexSection(this, section->value);
+                    // Suffix has viewStart _before_ the insert, so it offsets correctly after
+                    suffix->viewStart = index;
+                    int splitFirst = index - section->viewStart;
+                    int splitCount = section->count - splitFirst;
+                    suffix->insert(0, splitCount);
+                    sections.insert(s + 1, suffix);
+                    section->remove(splitFirst, splitCount);
+                }
+                createdSection = true;
+
+                // Always appending at this point
+                if (i > from)
+                    section->insert(section->count, i - from);
+                from = i;
+
+                s++;
+                section = new FlexSection(this, value);
+                section->viewStart = index + from;
+                sections.insert(s, section);
+            }
+
+            if (createdSection)
+                section->insert(0, count - from);
+            else
+                section->insert(index - section->viewStart, count - from);
+        }
+    }
+
+    for (const auto &change : pendingChanges.changes()) {
+        int first = change.start();
+        int count = change.count;
+
+        for (int s = 0; s < sections.size(); s++) {
+            FlexSection *section = sections[s];
+            int sectionFirst = section->mapToSection(first);
+            if (sectionFirst < 0)
+                continue;
+            int sectionCount = std::min(count, section->count - sectionFirst);
+
+            for (int i = 0; i < sectionCount; i++) {
+                QString value = sectionValue(section->mapToView(sectionFirst + i));
+                if (value == section->value)
+                    continue;
+
+                section->remove(sectionFirst + i, sectionCount - i);
+
+                FlexSection *newSection = new FlexSection(this, value);
+                newSection->viewStart = section->mapToView(sectionFirst + i);
+                newSection->insert(0, sectionCount - i);
+                sections.insert(s+1, newSection);
+
+                sectionCount = i;
+                break;
+            }
+
+            if (sectionCount > 0) {
+                section->change(sectionFirst, sectionCount);
+                first += sectionCount;
+                count -= sectionCount;
+            }
+
+            if (!count)
+                break;
+        }
+    }
+
+    for (int s = 0; s < sections.size(); s++) {
+        FlexSection *section = sections[s];
+        if (section->count == 0) {
+            delete section;
+            sections.removeAt(s);
+            s--;
+            continue;
+        }
+
+        if (s > 0 && section->value == sections[s-1]->value) {
+            FlexSection *prev = sections[s-1];
+            prev->insert(prev->count, section->count);
+            delete section;
+            sections.removeAt(s);
+            s--;
+            continue;
+        }
+    }
+
+    return true;
+}
+
+// XXX disable except for debugging
+void JustifyViewPrivate::validateSections()
+{
+    int modelCount = model->count();
+    FlexSection *prevSection = nullptr;
+    for (int s = 0; s < sections.size(); s++) {
+        FlexSection *section = sections[s];
+        if ((prevSection && prevSection->viewStart + prevSection->count != section->viewStart) || (!prevSection && section->viewStart > 0)) {
+            qCWarning(lcLayout) << "section" << s << "viewStart" << section->viewStart << "expected" << (prevSection ? prevSection->viewStart + prevSection->count : 0);
+        }
+        if (section->count < 1) {
+            qCWarning(lcLayout) << "section" << s << "is empty";
+        }
+        if (section->viewStart + section->count > modelCount) {
+            qCWarning(lcLayout) << "section" << s << "goes past model count" << modelCount << "with" << section->viewStart << section->count;
+        }
+        if (prevSection && prevSection->value == section->value) {
+            qCWarning(lcLayout) << "section" << s << "should merge with previous section";
+        }
+        prevSection = section;
     }
 }
 
@@ -224,4 +400,12 @@ QQuickItem *JustifyViewPrivate::createItem(int index)
 
     qCDebug(lcDelegate) << "created index" << index << item;
     return item;
+}
+
+QString JustifyViewPrivate::sectionValue(int index) const
+{
+    if (sectionRole.isEmpty())
+        return QString();
+    else
+        return model->stringValue(index, sectionRole);
 }

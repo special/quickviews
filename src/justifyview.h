@@ -11,6 +11,7 @@ class JustifyView : public QQuickFlickable
 
     Q_PROPERTY(QVariant model READ model WRITE setModel NOTIFY modelChanged)
     Q_PROPERTY(QQmlComponent* delegate READ delegate WRITE setDelegate NOTIFY delegateChanged)
+    Q_PROPERTY(QString sectionRole READ sectionRole WRITE setSectionRole NOTIFY sectionRoleChanged)
 
 public:
     JustifyView(QQuickItem *parent = nullptr);
@@ -22,9 +23,13 @@ public:
     QQmlComponent *delegate() const;
     void setDelegate(QQmlComponent *delegate);
 
+    QString sectionRole() const;
+    void setSectionRole(const QString &role);
+
 signals:
     void modelChanged();
     void delegateChanged();
+    void sectionRoleChanged();
 
 protected:
     virtual void componentComplete() override;
