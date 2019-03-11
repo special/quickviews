@@ -17,6 +17,7 @@ public:
 
     QVariant modelVariant;
     QPointer<QQmlInstanceModel> model;
+    int modelSizeRole = -1;
     bool ownModel = false;
     bool delegateValidated = false;
 
@@ -24,6 +25,7 @@ public:
 
     QList<FlexSection*> sections;
     QString sectionRole;
+    QString sizeRole;
 
     JustifyViewPrivate(JustifyView *q);
     virtual ~JustifyViewPrivate();
@@ -37,6 +39,7 @@ public:
     QQuickItem *createItem(int index);
 
     QString sectionValue(int index) const;
+    qreal indexFlexRatio(int index);
 
 public slots:
     void modelUpdated(const QQmlChangeSet &changes, bool reset);

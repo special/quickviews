@@ -2,6 +2,8 @@
 
 #include "justifyview_p.h"
 
+class RowCandidate;
+
 class FlexSection : public QObject
 {
     Q_OBJECT
@@ -39,4 +41,10 @@ public:
     void insert(int i, int count);
     void remove(int i, int count);
     void change(int i, int count);
+
+    bool layout();
+    void layoutDelegates(double x, double y);
+
+private:
+    QList<RowCandidate> layoutRows;
 };

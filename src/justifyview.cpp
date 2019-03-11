@@ -5,6 +5,8 @@
 #include <QQmlComponent>
 #include <QtQml/private/qqmldelegatemodel_p.h>
 
+#include <QRandomGenerator>
+
 Q_LOGGING_CATEGORY(lcView, "crimson.justifyview")
 Q_LOGGING_CATEGORY(lcLayout, "crimson.justifyview.layout")
 Q_LOGGING_CATEGORY(lcDelegate, "crimson.justifyview.delegate")
@@ -152,6 +154,7 @@ JustifyViewPrivate::~JustifyViewPrivate()
 void JustifyViewPrivate::clear()
 {
     pendingChanges.clear();
+    modelSizeRole = -1;
     delegateValidated = false;
 }
 
@@ -213,8 +216,7 @@ void JustifyViewPrivate::layout()
         }
 
         FlexSection *section = sections[s];
-        // XXX
-        section->height = 50 * section->count;
+        section->layout();
 
         if (!visibleArea.intersects(QRectF(x, y, visibleArea.width()-x, section->height))) {
             qCDebug(lcLayout) << "section" << s << "y" << y << "h" << section->height << "not visible";
@@ -224,15 +226,7 @@ void JustifyViewPrivate::layout()
             continue;
         }
 
-        qCDebug(lcLayout) << "section" << s << "visible for" << y << section->height;
-        for (int i = section->viewStart; i < section->viewStart + section->count; i++) {
-            QQuickItem *item = createItem(i);
-            if (!item)
-                return;
-
-            item->setPosition(QPointF(x, y));
-            y += 50; // item->height();
-        }
+        section->layoutDelegates(x, y);
     }
 }
 
@@ -448,4 +442,52 @@ QString JustifyViewPrivate::sectionValue(int index) const
         return QString();
     else
         return model->stringValue(index, sectionRole);
+}
+
+qreal JustifyViewPrivate::indexFlexRatio(int index)
+{
+    // XXX
+    static QMap<int,double> fake;
+    if (!fake.contains(index))
+        fake.insert(index, QRandomGenerator::global()->generateDouble());
+    return fake.value(index);
+
+    QQmlDelegateModel *delegateModel = qobject_cast<QQmlDelegateModel*>(model);
+    if (!model || sizeRole.isEmpty())
+        return 1;
+
+    // XXX delegate model only provides ::stringValue()...
+    QAbstractItemModel *aim = qobject_cast<QAbstractItemModel*>(delegateModel->model().value<QObject*>());
+    if (!aim) {
+        qCWarning(lcView) << "Only AbstractItemModel is supported for sizeRole";
+        return 1;
+    }
+
+    if (modelSizeRole < 0) {
+        auto roleNames = aim->roleNames();
+        for (auto it = roleNames.constBegin(); it != roleNames.constEnd(); it++) {
+            if (it.value() == sizeRole) {
+                modelSizeRole = it.key();
+                break;
+            }
+        }
+        if (modelSizeRole < 0) {
+            qCWarning(lcView) << "No role '" << sizeRole << "' found in model for sizeRole";
+            return 1;
+        }
+    }
+
+    QVariant value = aim->data(delegateModel->modelIndex(index).value<QModelIndex>(), modelSizeRole);
+    if (value.canConvert<QSizeF>()) {
+        QSizeF sz = value.value<QSizeF>();
+        if (!sz.isEmpty())
+            return sz.width() / sz.height();
+        else
+            return 1;
+    } else if (value.canConvert<qreal>()) {
+        return value.value<qreal>();
+    } else {
+        qCWarning(lcView) << "Invalid value" << value << "for sizeRole on index" << index;
+        return 1;
+    }
 }
