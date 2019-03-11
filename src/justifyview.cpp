@@ -218,7 +218,8 @@ void JustifyViewPrivate::layout()
         FlexSection *section = sections[s];
         section->layout();
 
-        if (!visibleArea.intersects(QRectF(x, y, visibleArea.width()-x, section->height))) {
+        QRectF visibleSectionArea = visibleArea.intersected(QRectF(x, y, visibleArea.width()-x, section->height));
+        if (visibleSectionArea.isEmpty()) {
             qCDebug(lcLayout) << "section" << s << "y" << y << "h" << section->height << "not visible";
             if (y > visibleArea.bottom())
                 break;
@@ -226,8 +227,11 @@ void JustifyViewPrivate::layout()
             continue;
         }
 
-        section->layoutDelegates(x, y);
+        section->layoutDelegates(y, visibleSectionArea);
+        y += section->height;
     }
+
+    q->setContentHeight(y);
 }
 
 bool JustifyViewPrivate::applyPendingChanges()

@@ -43,8 +43,9 @@ public:
     void change(int i, int count);
 
     bool layout();
-    void layoutDelegates(double x, double y);
+    void layoutDelegates(double y, const QRectF &visibleArea);
 
 private:
     QList<RowCandidate> layoutRows;
+    bool dirty = true;
 };

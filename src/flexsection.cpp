@@ -21,6 +21,7 @@ void FlexSection::insert(int i, int c)
 {
     Q_ASSERT(i >= 0 && i <= count);
     count += c;
+    dirty = true;
 }
 
 void FlexSection::remove(int i, int c)
@@ -29,6 +30,7 @@ void FlexSection::remove(int i, int c)
     Q_ASSERT(c >= 0);
     Q_ASSERT(i+c <= count);
     count -= c;
+    dirty = true;
 }
 
 void FlexSection::change(int i, int c)
@@ -36,6 +38,7 @@ void FlexSection::change(int i, int c)
     Q_ASSERT(i >= 0 && i < count);
     Q_ASSERT(c >= 0);
     Q_ASSERT(i+c <= count);
+    dirty = true;
 }
 
 struct RowCandidate
@@ -59,9 +62,12 @@ struct RowCandidate
 bool FlexSection::layout()
 {
     const int viewportWidth = view->q->width();
-    const qreal idealHeight = 150;
+    const qreal idealHeight = 300;
     const qreal minHeight = idealHeight * 0.85;
     const qreal maxHeight = idealHeight * 1.15;
+
+    if (!dirty)
+        return false;
 
     QList<RowCandidate> candidates;
     QList<RowCandidate> possible{RowCandidate(0)};
@@ -96,6 +102,11 @@ bool FlexSection::layout()
                 }
                 row.cost += row.badness;
 
+                if (i+1 == count && row.height > maxHeight) {
+                    // Set last partial row to idealHeight, but keep original badness
+                    row.height = idealHeight;
+                }
+
                 candidates.append(row);
                 breakCandidates.append(row); // XXX Just a trailing portion of candidates, optimize
                 canBreak = true;
@@ -114,15 +125,10 @@ bool FlexSection::layout()
                 }
             }
 
-            // XXX as of here, we've selected the best path to i+1 (but not that i+1 will be used)
-            // all other paths to i+1 are now dead
             possible.insert(i+1, next);
             qCDebug(lcFlex) << "considering rows from" << i+1 << "with" << breakCandidates.size() << "paths" << "selected" << next.upStart << next.upEnd << "for cost" << next.cost;
         }
-
-        // XXX anything in break for last index or the final bits are our terminating nodes..
     }
-
 
     layoutRows.clear();
     qCDebug(lcFlex) << "final rows:";
@@ -149,27 +155,38 @@ bool FlexSection::layout()
         this->height += row.height;
     }
 
+    dirty = false;
     return true;
 }
 
-void FlexSection::layoutDelegates(double left, double y)
+void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
 {
     auto row = layoutRows.constBegin();
-    double x = left;
-    for (int i = 0; i < count; i++) {
-        // XXX visible area, etc..
+    for (; row != layoutRows.constEnd(); row++) {
+        if (visibleArea.intersects(QRectF(visibleArea.x(), y, visibleArea.width(), row->height)))
+            break;
+        y += row->height;
+    }
+    if (row == layoutRows.constEnd())
+        return;
+
+    double x = 0;
+    for (int i = row->start; i < count; i++) {
+        if (i > row->end) {
+            y += row->height;
+            x = 0;
+            row++;
+            Q_ASSERT(row != layoutRows.constEnd());
+
+            if (y > visibleArea.bottom())
+                break;
+        }
+        Q_ASSERT(i >= row->start && i <= row->end);
+
         QQuickItem *item = view->createItem(mapToView(i));
         if (!item)
             return;
         double ratio = view->indexFlexRatio(mapToView(i));
-
-        if (i > row->end) {
-            y += row->height;
-            x = left;
-            row++;
-            Q_ASSERT(row != layoutRows.constEnd());
-        }
-        Q_ASSERT(i >= row->start && i <= row->end);
 
         qreal width = ratio * row->height;
         item->setPosition(QPointF(x, y));
