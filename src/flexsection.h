@@ -47,5 +47,6 @@ public:
 
 private:
     QList<RowCandidate> layoutRows;
+    QMap<int, QQuickItem*> delegates;
     bool dirty = true;
 };

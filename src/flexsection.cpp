@@ -22,6 +22,13 @@ void FlexSection::insert(int i, int c)
     Q_ASSERT(i >= 0 && i <= count);
     count += c;
     dirty = true;
+
+    QMap<int, QQuickItem*> adjusted;
+    for (auto it = delegates.lowerBound(i); it != delegates.end(); ) {
+        adjusted.insert(it.key()+c, it.value());
+        it = delegates.erase(it);
+    }
+    delegates.unite(adjusted);
 }
 
 void FlexSection::remove(int i, int c)
@@ -31,6 +38,18 @@ void FlexSection::remove(int i, int c)
     Q_ASSERT(i+c <= count);
     count -= c;
     dirty = true;
+
+    QMap<int, QQuickItem*> adjusted;
+    for (auto it = delegates.lowerBound(i); it != delegates.end(); ) {
+        int k = it.key()-c;
+        if (k - i < 0) {
+            view->model->release(it.value());
+        } else {
+            adjusted.insert(k, it.value());
+        }
+        it = delegates.erase(it);
+    }
+    delegates.unite(adjusted);
 }
 
 void FlexSection::change(int i, int c)
@@ -161,6 +180,8 @@ bool FlexSection::layout()
 
 void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
 {
+    Q_ASSERT(!dirty);
+
     auto row = layoutRows.constBegin();
     for (; row != layoutRows.constEnd(); row++) {
         if (visibleArea.intersects(QRectF(visibleArea.x(), y, visibleArea.width(), row->height)))
@@ -169,6 +190,12 @@ void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
     }
     if (row == layoutRows.constEnd())
         return;
+
+    int first = row->start;
+    while (!delegates.isEmpty() && delegates.firstKey() < first) {
+        view->model->release(delegates.first());
+        delegates.erase(delegates.begin());
+    }
 
     double x = 0;
     for (int i = row->start; i < count; i++) {
@@ -183,14 +210,25 @@ void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
         }
         Q_ASSERT(i >= row->start && i <= row->end);
 
-        QQuickItem *item = view->createItem(mapToView(i));
-        if (!item)
-            return;
+        QQuickItem *item = delegates.value(i);
+        if (!item) {
+            item = view->createItem(mapToView(i));
+            if (!item)
+                return;
+            delegates.insert(i, item);
+        }
         double ratio = view->indexFlexRatio(mapToView(i));
 
         qreal width = ratio * row->height;
         item->setPosition(QPointF(x, y));
         item->setSize(QSizeF(width, row->height));
         x += width;
+    }
+
+    int last = row->end;
+    for (auto it = delegates.lowerBound(last+1); it != delegates.end(); ) {
+        (*it)->setVisible(false);
+        view->model->release(*it);
+        it = delegates.erase(it);
     }
 }
