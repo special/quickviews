@@ -5,6 +5,7 @@
 // layout geometry and delegates within its range.
 
 Q_LOGGING_CATEGORY(lcFlex, "crimson.justifyview.flex")
+Q_LOGGING_CATEGORY(lcFlexLayout, "crimson.justifyview.flex.layout")
 
 FlexSection::FlexSection(JustifyViewPrivate *view, const QString &value)
     : QObject(view)
@@ -111,7 +112,7 @@ bool FlexSection::layout()
                 continue;
             if (candidate.height < minHeight && candidate.end >= 0) {
                 // Below minimum height, and at least one candidate has been recorded with this start index
-                qCDebug(lcFlex) << "no other possible rows start at" << candidate.start << "because adding row"
+                qCDebug(lcFlexLayout) << "no other possible rows start at" << candidate.start << "because adding row"
                     << i << "reduces height to" << candidate.height << "(min" << minHeight << ")";
                 possible.removeAt(p);
                 p--;
@@ -135,7 +136,7 @@ bool FlexSection::layout()
                 // XXX if i > row.start, the candidate ending at i-1 was just as viable.
                 // There was no way to know that at the time, and adding it now is complex
                 // because it _might_ create a new possible break.
-                qCDebug(lcFlex) << "only possible candidate starting at" << row.start << "ends at" << i
+                qCDebug(lcFlexLayout) << "only possible candidate starting at" << row.start << "ends at" << i
                     << "with height" << row.height << "below minimum" << minHeight;
                 possible.removeAt(p);
                 p--;
@@ -145,7 +146,7 @@ bool FlexSection::layout()
             breakCandidates.append(row); // XXX Just a trailing portion of candidates, optimize
             canBreak = true;
 
-            qCDebug(lcFlex) << "added candidate row" << row.start << "to" << row.end << "(inclusive) at height" << row.height << "and ratio" << row.ratio << "with badness" << row.badness << "final cost" << row.cost;
+            qCDebug(lcFlexLayout) << "added candidate row" << row.start << "to" << row.end << "(inclusive) at height" << row.height << "and ratio" << row.ratio << "with badness" << row.badness << "final cost" << row.cost;
         }
 
         if (canBreak && i+1 < count) {
@@ -160,14 +161,14 @@ bool FlexSection::layout()
 
             nBreaks++;
             possible.insert(i+1, next);
-            qCDebug(lcFlex) << "considering rows from" << i+1 << "with" << breakCandidates.size() << "paths" << "selected" << next.upStart << next.upEnd << "for cost" << next.cost;
+            qCDebug(lcFlexLayout) << "considering rows from" << i+1 << "with" << breakCandidates.size() << "paths" << "selected" << next.upStart << next.upEnd << "for cost" << next.cost;
         }
     }
 
     layoutRows.clear();
-    qCDebug(lcFlex) << "final rows:";
+    qCDebug(lcFlexLayout) << "final rows:";
     for (const auto &row : breakCandidates) {
-        qCDebug(lcFlex) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "parent" << row.upStart << "to" << row.upEnd;
+        qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "parent" << row.upStart << "to" << row.upEnd;
         if (layoutRows.isEmpty())
             layoutRows.append(row);
         else if (row.cost < layoutRows.first().cost)
@@ -183,9 +184,9 @@ bool FlexSection::layout()
     }
 
     this->height = 0;
-    qCDebug(lcFlex) << "selected layout:";
+    qCDebug(lcFlexLayout) << "selected layout:";
     for (const auto &row : layoutRows) {
-        qCDebug(lcFlex) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "height" << row.height;
+        qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "height" << row.height;
         this->height += row.height;
     }
 
