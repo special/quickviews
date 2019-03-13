@@ -206,7 +206,8 @@ void JustifyViewPrivate::layout()
     validateSections();
 
     QRectF visibleArea(q->contentX(), q->contentY(), q->width(), q->height());
-    qCDebug(lcLayout) << "layout area" << visibleArea;
+    qreal viewportWidth = q->width(); // XXX contentWidth?
+    qCDebug(lcLayout) << "layout area" << visibleArea << "viewportWidth" << viewportWidth;
 
     qreal x = 0, y = 0;
     for (int s = 0; ; s++) {
@@ -216,6 +217,8 @@ void JustifyViewPrivate::layout()
         }
 
         FlexSection *section = sections[s];
+        section->setViewportWidth(viewportWidth);
+        section->setIdealHeight(160, 200, 240);
         section->layout();
 
         QRectF visibleSectionArea = visibleArea.intersected(QRectF(x, y, visibleArea.width()-x, section->height));

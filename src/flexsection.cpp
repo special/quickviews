@@ -94,15 +94,38 @@ struct RowCandidate
     }
 };
 
+bool FlexSection::setViewportWidth(qreal width)
+{
+    if (viewportWidth == width)
+        return false;
+    viewportWidth = width;
+    dirty = true;
+    return true;
+}
+
+bool FlexSection::setIdealHeight(qreal min, qreal ideal, qreal max)
+{
+    if (min == minHeight && ideal == idealHeight && max == maxHeight)
+        return false;
+    minHeight = min;
+    idealHeight = ideal;
+    maxHeight = max;
+    dirty = true;
+    return true;
+}
+
 bool FlexSection::layout()
 {
-    const int viewportWidth = view->q->width();
-    const qreal idealHeight = 300;
-    const qreal minHeight = idealHeight * 0.85;
-    const qreal maxHeight = idealHeight * 1.15;
 
     if (!dirty)
         return false;
+
+    layoutRows.clear();
+    height = 0;
+    if (viewportWidth < 1 || minHeight < 1 || idealHeight < 1 || maxHeight < 1) {
+        dirty = false;
+        return true;
+    }
 
     QElapsedTimer tm;
     tm.restart();
@@ -136,13 +159,7 @@ bool FlexSection::layout()
 
             candidate.end = i;
             RowCandidate row = candidate;
-
-            if (row.height < idealHeight) {
-                row.badness = 1 - (row.height - minHeight) / (idealHeight - minHeight);
-            } else if (row.height > idealHeight) {
-                row.badness = 1 - (maxHeight - row.height) / (maxHeight - idealHeight);
-            }
-            row.cost += row.badness;
+            row.cost += badness(row);
 
             if (row.height > maxHeight) {
                 // Set last partial row to idealHeight, but keep original badness
@@ -161,7 +178,7 @@ bool FlexSection::layout()
             breakCandidates.append(row); // XXX Just a trailing portion of candidates, optimize
             canBreak = true;
 
-            qCDebug(lcFlexLayout) << "added candidate row" << row.start << "to" << row.end << "(inclusive) at height" << row.height << "and ratio" << row.ratio << "with badness" << row.badness << "final cost" << row.cost;
+            qCDebug(lcFlexLayout) << "added candidate row" << row.start << "to" << row.end << "(inclusive) at height" << row.height << "and ratio" << row.ratio << "with badness" << badness(row) << "final cost" << row.cost;
         }
 
         if (canBreak && i+1 < count) {
@@ -180,7 +197,6 @@ bool FlexSection::layout()
         }
     }
 
-    layoutRows.clear();
     qCDebug(lcFlexLayout) << "final rows:";
     for (const auto &row : breakCandidates) {
         qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "parent" << row.upStart << "to" << row.upEnd;
@@ -198,7 +214,6 @@ bool FlexSection::layout()
             layoutRows.prepend(*it);
     }
 
-    this->height = 0;
     qCDebug(lcFlexLayout) << "selected layout:";
     for (const auto &row : layoutRows) {
         qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "height" << row.height;
@@ -208,6 +223,17 @@ bool FlexSection::layout()
     qCDebug(lcFlex) << "layout has" << layoutRows.size() << "rows for" << count << "items; considered" << candidates.size() << "rows from" << nBreaks << "positions in" << tm.elapsed() << "ms";
     dirty = false;
     return true;
+}
+
+qreal FlexSection::badness(const RowCandidate &row) const
+{
+    if (row.height < idealHeight) {
+        return 1 - (row.height - minHeight) / (idealHeight - minHeight);
+    } else if (row.height > idealHeight) {
+        return 1 - (maxHeight - row.height) / (maxHeight - idealHeight);
+    } else {
+        return 0;
+    }
 }
 
 void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)

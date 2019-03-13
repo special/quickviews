@@ -36,7 +36,8 @@ public:
         return i - viewStart;
     }
 
-    // XXX These are not touching viewStart
+    bool setViewportWidth(qreal width);
+    bool setIdealHeight(qreal min, qreal ideal, qreal max);
 
     void insert(int i, int count);
     void remove(int i, int count);
@@ -49,5 +50,11 @@ public:
 private:
     QList<RowCandidate> layoutRows;
     QMap<int, QQuickItem*> delegates;
+    qreal viewportWidth = 0;
+    qreal minHeight = 0;
+    qreal idealHeight = 0;
+    qreal maxHeight = 0;
     bool dirty = true;
+
+    qreal badness(const RowCandidate &row) const;
 };
