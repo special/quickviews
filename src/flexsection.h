@@ -41,6 +41,7 @@ public:
     void insert(int i, int count);
     void remove(int i, int count);
     void change(int i, int count);
+    void clear();
 
     bool layout();
     void layoutDelegates(double y, const QRectF &visibleArea);

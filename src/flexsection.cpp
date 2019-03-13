@@ -16,6 +16,20 @@ FlexSection::FlexSection(JustifyViewPrivate *view, const QString &value)
 
 FlexSection::~FlexSection()
 {
+    clear();
+}
+
+void FlexSection::clear()
+{
+    height = 0;
+    count = 0;
+    layoutRows.clear();
+    for (auto item : delegates) {
+        item->setVisible(false);
+        view->model->release(item);
+    }
+    delegates.clear();
+    dirty = false;
 }
 
 void FlexSection::insert(int i, int c)
@@ -44,9 +58,10 @@ void FlexSection::remove(int i, int c)
     for (auto it = delegates.lowerBound(i); it != delegates.end(); ) {
         int k = it.key()-c;
         if (k - i < 0) {
-            view->model->release(it.value());
+            (*it)->setVisible(false);
+            view->model->release(*it);
         } else {
-            adjusted.insert(k, it.value());
+            adjusted.insert(k, *it);
         }
         it = delegates.erase(it);
     }
@@ -210,7 +225,9 @@ void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
 
     int first = row->start;
     while (!delegates.isEmpty() && delegates.firstKey() < first) {
-        view->model->release(delegates.first());
+        auto first = delegates.first();
+        first->setVisible(false);
+        view->model->release(first);
         delegates.erase(delegates.begin());
     }
 
