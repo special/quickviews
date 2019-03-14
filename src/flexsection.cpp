@@ -17,6 +17,7 @@ struct FlexRow
     qreal height;
     qreal cost;
 
+    FlexRow() = default;
     FlexRow(int start)
         : start(start), end(-1), prevStart(-1), ratio(0), height(0), cost(0)
     {
@@ -127,21 +128,19 @@ bool FlexSection::layout()
     QElapsedTimer tm;
     tm.restart();
 
-    QList<FlexRow> candidates;
-    QList<FlexRow> possible{FlexRow(0)};
-    QList<FlexRow> breakCandidates;
-    int nBreaks = 0;
+    QVector<FlexRow> rows;
+    QVector<FlexRow> openRows{FlexRow(0)};
+    int nStartPositions = 0;
 
     for (int i = 0; i < count; i++) {
         qreal ratio = view->indexFlexRatio(mapToView(i));
         if (!ratio)
             ratio = 1;
 
-        bool canBreak = false;
-        breakCandidates.clear();
-        Q_ASSERT(!possible.isEmpty());
-        for (int p = 0; p < possible.size(); p++) {
-            FlexRow &candidate = possible[p];
+        int rowsAdded = 0;
+        Q_ASSERT(!openRows.isEmpty());
+        for (int p = 0; p < openRows.size(); p++) {
+            FlexRow &candidate = openRows[p];
             candidate.ratio += ratio;
             candidate.height = viewportWidth / candidate.ratio;
 
@@ -149,9 +148,9 @@ bool FlexSection::layout()
                 continue;
             if (candidate.height < minHeight && candidate.end >= 0) {
                 // Below minimum height, and at least one candidate has been recorded with this start index
-                qCDebug(lcFlexLayout) << "no other possible rows start at" << candidate.start << "because adding row"
-                    << i << "reduces height to" << candidate.height << "(min" << minHeight << ")";
-                possible.removeAt(p);
+                qCDebug(lcFlexLayout) << "no more rows start at" << candidate.start << "because adding"
+                    << i << "reduces height to" << candidate.height << "with minimum" << minHeight;
+                openRows.removeAt(p);
                 p--;
                 continue;
             }
@@ -165,60 +164,57 @@ bool FlexSection::layout()
                 row.height = idealHeight;
             } else if (row.height < minHeight) {
                 // XXX if i > row.start, the candidate ending at i-1 was just as viable.
-                // There was no way to know that at the time, and adding it now is complex
-                // because it _might_ create a new possible break.
-                qCDebug(lcFlexLayout) << "only possible candidate starting at" << row.start << "ends at" << i
-                    << "with height" << row.height << "below minimum" << minHeight;
-                possible.removeAt(p);
+                // There was no way to know that at the time, and adding it now is complex.
+                qCDebug(lcFlexLayout) << "row from" << row.start << "to" << i << "height" << row.height
+                    << "is below minimum" << minHeight << "but no other rows can start from" << row.start;
+                openRows.removeAt(p);
                 p--;
             }
 
-            candidates.append(row);
-            breakCandidates.append(row); // XXX Just a trailing portion of candidates, optimize
-            canBreak = true;
-
-            qCDebug(lcFlexLayout) << "added candidate row" << row.start << "to" << row.end << "(inclusive) at height" << row.height << "and ratio" << row.ratio << "with badness" << badness(row) << "final cost" << row.cost;
+            rows.append(row);
+            rowsAdded++;
+            qCDebug(lcFlexLayout) << "row:" << row.start << "to" << row.end << "height" << row.height
+                << "ratio" << row.ratio << "badness" << badness(row) << "cost" << row.cost;
         }
 
-        if (canBreak && i+1 < count) {
+        if (rowsAdded && i+1 < count) {
+            // Row(s) ended at index i, so add a row starting at i+1 to openRows
             FlexRow next(i+1);
-            for (const auto &node : breakCandidates) {
-                if (!next.cost || node.cost < next.cost) {
-                    next.cost = node.cost;
-                    next.prevStart = node.start;
+            for (int j = rows.size() - rowsAdded; j < rows.size(); j++) {
+                if (next.prevStart < 0 || rows[j].cost < next.cost) {
+                    next.cost = rows[j].cost;
+                    next.prevStart = rows[j].start;
                 }
             }
 
-            nBreaks++;
-            possible.insert(next.start, next);
-            qCDebug(lcFlexLayout) << "considering rows from" << next.start << "with" << breakCandidates.size() << "paths" << "selected previous row from" << next.prevStart << "for cost" << next.cost;
+            nStartPositions++;
+            openRows.append(next);
+            qCDebug(lcFlexLayout) << "starting row at" << next.start << "reachable by" << rowsAdded
+                << "with cost" << next.cost << "for previous row" << next.prevStart << "to" << next.start-1;
         }
     }
 
-    qCDebug(lcFlexLayout) << "final rows:";
-    for (const auto &row : breakCandidates) {
-        qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "previous row starts at" << row.prevStart;
-        if (layoutRows.isEmpty())
-            layoutRows.append(row);
-        else if (row.cost < layoutRows.first().cost)
-            layoutRows.first() = row;
+    for (int i = rows.size()-1; i >= 0; i--) {
+        const FlexRow &row = rows[i];
+        if (row.end == count-1) {
+            if (layoutRows.isEmpty())
+                layoutRows.append(row);
+            else if (row.cost < layoutRows[0].cost)
+                layoutRows[0] = row;
+        } else if (row.start == layoutRows[0].prevStart) {
+            Q_ASSERT(row.end == layoutRows[0].start-1);
+            // This isn't ideal; prepend is slow on vector
+            layoutRows.prepend(row);
+        }
     }
 
-    for (auto it = candidates.rbegin(); it != candidates.rend(); it++) {
-        int start = layoutRows.first().prevStart;
-        int end = layoutRows.first().start-1;
-        Q_ASSERT(end > it->start);
-        if (it->start == start && it->end == end)
-            layoutRows.prepend(*it);
-    }
-
-    qCDebug(lcFlexLayout) << "selected layout:";
+    qCDebug(lcFlexLayout) << "selected rows:";
     for (const auto &row : layoutRows) {
         qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "height" << row.height;
         this->height += row.height;
     }
 
-    qCDebug(lcFlex) << "layout has" << layoutRows.size() << "rows for" << count << "items; considered" << candidates.size() << "rows from" << nBreaks << "positions in" << tm.elapsed() << "ms";
+    qCDebug(lcFlex) << "layout has" << layoutRows.size() << "rows for" << count << "items; considered" << rows.size() << "rows from" << nStartPositions << "positions in" << tm.elapsed() << "ms";
     dirty = false;
     return true;
 }
@@ -276,6 +272,8 @@ void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
             delegates.insert(i, item);
         }
         double ratio = view->indexFlexRatio(mapToView(i));
+        if (!ratio)
+            ratio = 1;
 
         qreal width = ratio * row->height;
         item->setPosition(QPointF(x, y));

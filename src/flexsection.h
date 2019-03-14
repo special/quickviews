@@ -48,7 +48,7 @@ public:
     void layoutDelegates(double y, const QRectF &visibleArea);
 
 private:
-    QList<FlexRow> layoutRows;
+    QVector<FlexRow> layoutRows;
     QMap<int, QQuickItem*> delegates;
     qreal viewportWidth = 0;
     qreal minHeight = 0;
