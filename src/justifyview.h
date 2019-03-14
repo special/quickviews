@@ -34,6 +34,7 @@ signals:
 protected:
     virtual void componentComplete() override;
     virtual void updatePolish() override;
+    virtual void geometryChanged(const QRectF &newRect, const QRectF &oldRect) override;
 
 private:
     friend class JustifyViewPrivate;

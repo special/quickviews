@@ -141,6 +141,13 @@ void JustifyView::updatePolish()
     d->layout();
 }
 
+void JustifyView::geometryChanged(const QRectF &newRect, const QRectF &oldRect)
+{
+    QQuickFlickable::geometryChanged(newRect, oldRect);
+    if (newRect.size() != oldRect.size())
+        polish();
+}
+
 JustifyViewPrivate::JustifyViewPrivate(JustifyView *q)
     : QObject(q)
     , q(q)
