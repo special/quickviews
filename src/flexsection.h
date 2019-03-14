@@ -2,7 +2,7 @@
 
 #include "justifyview_p.h"
 
-class RowCandidate;
+class FlexRow;
 
 class FlexSection : public QObject
 {
@@ -48,7 +48,7 @@ public:
     void layoutDelegates(double y, const QRectF &visibleArea);
 
 private:
-    QList<RowCandidate> layoutRows;
+    QList<FlexRow> layoutRows;
     QMap<int, QQuickItem*> delegates;
     qreal viewportWidth = 0;
     qreal minHeight = 0;
@@ -56,5 +56,5 @@ private:
     qreal maxHeight = 0;
     bool dirty = true;
 
-    qreal badness(const RowCandidate &row) const;
+    qreal badness(const FlexRow &row) const;
 };

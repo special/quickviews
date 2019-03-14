@@ -7,6 +7,22 @@
 Q_LOGGING_CATEGORY(lcFlex, "crimson.justifyview.flex")
 Q_LOGGING_CATEGORY(lcFlexLayout, "crimson.justifyview.flex.layout")
 
+struct FlexRow
+{
+    int start;
+    int end; // inclusive
+    // Chosen previous row is between prevStart and start-1
+    int prevStart;
+    qreal ratio;
+    qreal height;
+    qreal cost;
+
+    FlexRow(int start)
+        : start(start), end(-1), prevStart(-1), ratio(0), height(0), cost(0)
+    {
+    }
+};
+
 FlexSection::FlexSection(JustifyViewPrivate *view, const QString &value)
     : QObject(view)
     , view(view)
@@ -76,24 +92,6 @@ void FlexSection::change(int i, int c)
     dirty = true;
 }
 
-struct RowCandidate
-{
-    int start;
-    int end; // inclusive
-    qreal ratio;
-    qreal height;
-    qreal badness;
-
-    int upStart = -1;
-    int upEnd = -1;
-    qreal cost = 0;
-
-    RowCandidate(int start)
-        : start(start), end(-1), ratio(0), height(0), badness(0)
-    {
-    }
-};
-
 bool FlexSection::setViewportWidth(qreal width)
 {
     if (viewportWidth == width)
@@ -116,7 +114,6 @@ bool FlexSection::setIdealHeight(qreal min, qreal ideal, qreal max)
 
 bool FlexSection::layout()
 {
-
     if (!dirty)
         return false;
 
@@ -130,19 +127,21 @@ bool FlexSection::layout()
     QElapsedTimer tm;
     tm.restart();
 
-    QList<RowCandidate> candidates;
-    QList<RowCandidate> possible{RowCandidate(0)};
-    QList<RowCandidate> breakCandidates;
+    QList<FlexRow> candidates;
+    QList<FlexRow> possible{FlexRow(0)};
+    QList<FlexRow> breakCandidates;
     int nBreaks = 0;
 
     for (int i = 0; i < count; i++) {
         qreal ratio = view->indexFlexRatio(mapToView(i));
+        if (!ratio)
+            ratio = 1;
 
         bool canBreak = false;
         breakCandidates.clear();
         Q_ASSERT(!possible.isEmpty());
         for (int p = 0; p < possible.size(); p++) {
-            RowCandidate &candidate = possible[p];
+            FlexRow &candidate = possible[p];
             candidate.ratio += ratio;
             candidate.height = viewportWidth / candidate.ratio;
 
@@ -158,7 +157,7 @@ bool FlexSection::layout()
             }
 
             candidate.end = i;
-            RowCandidate row = candidate;
+            FlexRow row = candidate;
             row.cost += badness(row);
 
             if (row.height > maxHeight) {
@@ -182,24 +181,23 @@ bool FlexSection::layout()
         }
 
         if (canBreak && i+1 < count) {
-            RowCandidate next(i+1);
+            FlexRow next(i+1);
             for (const auto &node : breakCandidates) {
                 if (!next.cost || node.cost < next.cost) {
                     next.cost = node.cost;
-                    next.upStart = node.start;
-                    next.upEnd = node.end;
+                    next.prevStart = node.start;
                 }
             }
 
             nBreaks++;
-            possible.insert(i+1, next);
-            qCDebug(lcFlexLayout) << "considering rows from" << i+1 << "with" << breakCandidates.size() << "paths" << "selected" << next.upStart << next.upEnd << "for cost" << next.cost;
+            possible.insert(next.start, next);
+            qCDebug(lcFlexLayout) << "considering rows from" << next.start << "with" << breakCandidates.size() << "paths" << "selected previous row from" << next.prevStart << "for cost" << next.cost;
         }
     }
 
     qCDebug(lcFlexLayout) << "final rows:";
     for (const auto &row : breakCandidates) {
-        qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "parent" << row.upStart << "to" << row.upEnd;
+        qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "previous row starts at" << row.prevStart;
         if (layoutRows.isEmpty())
             layoutRows.append(row);
         else if (row.cost < layoutRows.first().cost)
@@ -207,8 +205,8 @@ bool FlexSection::layout()
     }
 
     for (auto it = candidates.rbegin(); it != candidates.rend(); it++) {
-        int start = layoutRows.first().upStart;
-        int end = layoutRows.first().upEnd;
+        int start = layoutRows.first().prevStart;
+        int end = layoutRows.first().start-1;
         Q_ASSERT(end > it->start);
         if (it->start == start && it->end == end)
             layoutRows.prepend(*it);
@@ -225,7 +223,7 @@ bool FlexSection::layout()
     return true;
 }
 
-qreal FlexSection::badness(const RowCandidate &row) const
+qreal FlexSection::badness(const FlexRow &row) const
 {
     if (row.height < idealHeight) {
         return 1 - (row.height - minHeight) / (idealHeight - minHeight);
