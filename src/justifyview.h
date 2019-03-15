@@ -12,6 +12,7 @@ class JustifyView : public QQuickFlickable
     Q_PROPERTY(QVariant model READ model WRITE setModel NOTIFY modelChanged)
     Q_PROPERTY(QQmlComponent* delegate READ delegate WRITE setDelegate NOTIFY delegateChanged)
     Q_PROPERTY(QString sectionRole READ sectionRole WRITE setSectionRole NOTIFY sectionRoleChanged)
+    Q_PROPERTY(QString sizeRole READ sizeRole WRITE setSizeRole NOTIFY sizeRoleChanged)
     Q_PROPERTY(qreal idealHeight READ idealHeight WRITE setIdealHeight NOTIFY idealHeightChanged)
     Q_PROPERTY(qreal minHeight READ minHeight WRITE setMinHeight NOTIFY minHeightChanged)
     Q_PROPERTY(qreal maxHeight READ maxHeight WRITE setMaxHeight NOTIFY maxHeightChanged)
@@ -29,7 +30,8 @@ public:
     QString sectionRole() const;
     void setSectionRole(const QString &role);
 
-    // XXX sizeRole
+    QString sizeRole() const;
+    void setSizeRole(const QString &role);
 
     qreal idealHeight() const;
     void setIdealHeight(qreal idealHeight);
@@ -42,6 +44,7 @@ signals:
     void modelChanged();
     void delegateChanged();
     void sectionRoleChanged();
+    void sizeRoleChanged();
     void idealHeightChanged();
     void minHeightChanged();
     void maxHeightChanged();

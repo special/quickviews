@@ -134,6 +134,21 @@ void JustifyView::setSectionRole(const QString &role)
     emit sectionRoleChanged();
 }
 
+QString JustifyView::sizeRole() const
+{
+    return d->sizeRole;
+}
+
+void JustifyView::setSizeRole(const QString &role)
+{
+    if (d->sizeRole == role)
+        return;
+    d->sizeRole = role;
+    d->clear();
+    polish();
+    emit sizeRoleChanged();
+}
+
 qreal JustifyView::idealHeight() const
 {
     return d->idealHeight;
