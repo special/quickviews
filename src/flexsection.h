@@ -1,6 +1,6 @@
 #pragma once
 
-#include "justifyview_p.h"
+#include "flexview_p.h"
 
 class FlexRow;
 
@@ -9,7 +9,7 @@ class FlexSection : public QObject
     Q_OBJECT
 
 public:
-    JustifyViewPrivate * const view;
+    FlexViewPrivate * const view;
     const QString value;
 
     // XXX part of section delegate
@@ -18,7 +18,7 @@ public:
     int viewStart = -1;
     int count = 0;
 
-    FlexSection(JustifyViewPrivate *view, const QString &value);
+    FlexSection(FlexViewPrivate *view, const QString &value);
     virtual ~FlexSection();
 
     int mapToView(int i) const

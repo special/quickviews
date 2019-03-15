@@ -1,6 +1,6 @@
 #pragma once
 
-#include "justifyview.h"
+#include "flexview.h"
 #include <QPointer>
 #include <QtQml/private/qqmlobjectmodel_p.h>
 #include <QtQml/private/qqmlchangeset_p.h>
@@ -8,12 +8,12 @@
 
 class FlexSection;
 
-class JustifyViewPrivate : public QObject
+class FlexViewPrivate : public QObject
 {
     Q_OBJECT
 
 public:
-    JustifyView * const q;
+    FlexView * const q;
 
     QVariant modelVariant;
     QPointer<QQmlInstanceModel> model;
@@ -31,8 +31,8 @@ public:
     qreal minHeight = 0;
     qreal maxHeight = 0;
 
-    JustifyViewPrivate(JustifyView *q);
-    virtual ~JustifyViewPrivate();
+    FlexViewPrivate(FlexView *q);
+    virtual ~FlexViewPrivate();
 
     void layout();
     void updateContentHeight(qreal layoutHeight);

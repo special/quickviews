@@ -1,9 +1,9 @@
 #include "plugin.h"
-#include "justifyview.h"
+#include "flexview.h"
 #include <QtQml>
 
 void QuickViewsPlugin::registerTypes(const char *uri)
 {
     // @uri Crimson.Views
-    qmlRegisterType<JustifyView>(uri, 1, 0, "JustifyView");
+    qmlRegisterType<FlexView>(uri, 1, 0, "FlexView");
 }

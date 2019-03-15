@@ -8,13 +8,13 @@ QT += qml quick qml-private quick-private
 
 SOURCES += \
     src/plugin.cpp \
-    src/justifyview.cpp \
+    src/flexview.cpp \
     src/flexsection.cpp
 
 HEADERS += \
     src/plugin.h \
-    src/justifyview.h \
-    src/justifyview_p.h \
+    src/flexview.h \
+    src/flexview_p.h \
     src/flexsection.h
 
 load(qml_plugin)

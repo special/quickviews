@@ -4,8 +4,8 @@
 // FlexSection contains a range of rows to be laid out as a discrete section. It manages
 // layout geometry and delegates within its range.
 
-Q_LOGGING_CATEGORY(lcFlex, "crimson.justifyview.flex")
-Q_LOGGING_CATEGORY(lcFlexLayout, "crimson.justifyview.flex.layout")
+Q_LOGGING_CATEGORY(lcFlex, "crimson.flexview.flex")
+Q_LOGGING_CATEGORY(lcFlexLayout, "crimson.flexview.flex.layout")
 
 struct FlexRow
 {
@@ -24,7 +24,7 @@ struct FlexRow
     }
 };
 
-FlexSection::FlexSection(JustifyViewPrivate *view, const QString &value)
+FlexSection::FlexSection(FlexViewPrivate *view, const QString &value)
     : QObject(view)
     , view(view)
     , value(value)

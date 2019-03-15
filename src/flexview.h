@@ -2,10 +2,10 @@
 
 #include <QtQuick/private/qquickflickable_p.h>
 
-class JustifyViewPrivate;
+class FlexViewPrivate;
 class QQmlComponent;
 
-class JustifyView : public QQuickFlickable
+class FlexView : public QQuickFlickable
 {
     Q_OBJECT
 
@@ -18,8 +18,8 @@ class JustifyView : public QQuickFlickable
     Q_PROPERTY(qreal maxHeight READ maxHeight WRITE setMaxHeight NOTIFY maxHeightChanged)
 
 public:
-    JustifyView(QQuickItem *parent = nullptr);
-    virtual ~JustifyView();
+    FlexView(QQuickItem *parent = nullptr);
+    virtual ~FlexView();
 
     QVariant model() const;
     void setModel(const QVariant &model);
@@ -55,7 +55,7 @@ protected:
     virtual void geometryChanged(const QRectF &newRect, const QRectF &oldRect) override;
 
 private:
-    friend class JustifyViewPrivate;
+    friend class FlexViewPrivate;
 
-    JustifyViewPrivate *d = nullptr;
+    FlexViewPrivate *d = nullptr;
 };

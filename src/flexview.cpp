@@ -1,4 +1,4 @@
-#include "justifyview_p.h"
+#include "flexview_p.h"
 #include "flexsection.h"
 #include <QtQml>
 #include <QLoggingCategory>
@@ -7,33 +7,33 @@
 
 #include <QRandomGenerator>
 
-Q_LOGGING_CATEGORY(lcView, "crimson.justifyview")
-Q_LOGGING_CATEGORY(lcLayout, "crimson.justifyview.layout")
-Q_LOGGING_CATEGORY(lcDelegate, "crimson.justifyview.delegate")
+Q_LOGGING_CATEGORY(lcView, "crimson.flexview")
+Q_LOGGING_CATEGORY(lcLayout, "crimson.flexview.layout")
+Q_LOGGING_CATEGORY(lcDelegate, "crimson.flexview.delegate")
 
-JustifyView::JustifyView(QQuickItem *parent)
+FlexView::FlexView(QQuickItem *parent)
     : QQuickFlickable(parent)
-    , d(new JustifyViewPrivate(this))
+    , d(new FlexViewPrivate(this))
 {
 }
 
-JustifyView::~JustifyView()
+FlexView::~FlexView()
 {
 }
 
-void JustifyView::componentComplete()
+void FlexView::componentComplete()
 {
     if (d->model && d->ownModel)
         static_cast<QQmlDelegateModel*>(d->model.data())->componentComplete();
     QQuickFlickable::componentComplete();
 }
 
-QVariant JustifyView::model() const
+QVariant FlexView::model() const
 {
     return d->modelVariant;
 }
 
-void JustifyView::setModel(const QVariant &m)
+void FlexView::setModel(const QVariant &m)
 {
     // Primarily based on QQuickItemView::setModel
     QVariant model = m;
@@ -43,10 +43,10 @@ void JustifyView::setModel(const QVariant &m)
         return;
 
     if (d->model) {
-        disconnect(d->model, &QQmlInstanceModel::modelUpdated, d, &JustifyViewPrivate::modelUpdated);
-        disconnect(d->model, &QQmlInstanceModel::initItem, d, &JustifyViewPrivate::initItem);
-        disconnect(d->model, &QQmlInstanceModel::createdItem, d, &JustifyViewPrivate::createdItem);
-        disconnect(d->model, &QQmlInstanceModel::destroyingItem, d, &JustifyViewPrivate::destroyingItem);
+        disconnect(d->model, &QQmlInstanceModel::modelUpdated, d, &FlexViewPrivate::modelUpdated);
+        disconnect(d->model, &QQmlInstanceModel::initItem, d, &FlexViewPrivate::initItem);
+        disconnect(d->model, &QQmlInstanceModel::createdItem, d, &FlexViewPrivate::createdItem);
+        disconnect(d->model, &QQmlInstanceModel::destroyingItem, d, &FlexViewPrivate::destroyingItem);
     }
 
     QQmlInstanceModel *oldModel = d->model;
@@ -77,10 +77,10 @@ void JustifyView::setModel(const QVariant &m)
     }
 
     if (d->model) {
-        connect(d->model, &QQmlInstanceModel::modelUpdated, d, &JustifyViewPrivate::modelUpdated);
-        connect(d->model, &QQmlInstanceModel::initItem, d, &JustifyViewPrivate::initItem);
-        connect(d->model, &QQmlInstanceModel::createdItem, d, &JustifyViewPrivate::createdItem);
-        connect(d->model, &QQmlInstanceModel::destroyingItem, d, &JustifyViewPrivate::destroyingItem);
+        connect(d->model, &QQmlInstanceModel::modelUpdated, d, &FlexViewPrivate::modelUpdated);
+        connect(d->model, &QQmlInstanceModel::initItem, d, &FlexViewPrivate::initItem);
+        connect(d->model, &QQmlInstanceModel::createdItem, d, &FlexViewPrivate::createdItem);
+        connect(d->model, &QQmlInstanceModel::destroyingItem, d, &FlexViewPrivate::destroyingItem);
     }
 
     polish();
@@ -88,7 +88,7 @@ void JustifyView::setModel(const QVariant &m)
     emit modelChanged();
 }
 
-QQmlComponent *JustifyView::delegate() const
+QQmlComponent *FlexView::delegate() const
 {
     if (d->model) {
         QQmlDelegateModel *dataModel = qobject_cast<QQmlDelegateModel*>(d->model);
@@ -97,7 +97,7 @@ QQmlComponent *JustifyView::delegate() const
     return nullptr;
 }
 
-void JustifyView::setDelegate(QQmlComponent *delegate)
+void FlexView::setDelegate(QQmlComponent *delegate)
 {
     if (delegate == this->delegate())
         return;
@@ -119,12 +119,12 @@ void JustifyView::setDelegate(QQmlComponent *delegate)
     emit delegateChanged();
 }
 
-QString JustifyView::sectionRole() const
+QString FlexView::sectionRole() const
 {
     return d->sectionRole;
 }
 
-void JustifyView::setSectionRole(const QString &role)
+void FlexView::setSectionRole(const QString &role)
 {
     if (d->sectionRole == role)
         return;
@@ -134,12 +134,12 @@ void JustifyView::setSectionRole(const QString &role)
     emit sectionRoleChanged();
 }
 
-QString JustifyView::sizeRole() const
+QString FlexView::sizeRole() const
 {
     return d->sizeRole;
 }
 
-void JustifyView::setSizeRole(const QString &role)
+void FlexView::setSizeRole(const QString &role)
 {
     if (d->sizeRole == role)
         return;
@@ -149,12 +149,12 @@ void JustifyView::setSizeRole(const QString &role)
     emit sizeRoleChanged();
 }
 
-qreal JustifyView::idealHeight() const
+qreal FlexView::idealHeight() const
 {
     return d->idealHeight;
 }
 
-void JustifyView::setIdealHeight(qreal height)
+void FlexView::setIdealHeight(qreal height)
 {
     if (d->idealHeight == height)
         return;
@@ -163,12 +163,12 @@ void JustifyView::setIdealHeight(qreal height)
     emit idealHeightChanged();
 }
 
-qreal JustifyView::minHeight() const
+qreal FlexView::minHeight() const
 {
     return d->minHeight;
 }
 
-void JustifyView::setMinHeight(qreal height)
+void FlexView::setMinHeight(qreal height)
 {
     if (d->minHeight == height)
         return;
@@ -177,12 +177,12 @@ void JustifyView::setMinHeight(qreal height)
     emit minHeightChanged();
 }
 
-qreal JustifyView::maxHeight() const
+qreal FlexView::maxHeight() const
 {
     return d->maxHeight;
 }
 
-void JustifyView::setMaxHeight(qreal height)
+void FlexView::setMaxHeight(qreal height)
 {
     if (d->maxHeight == height)
         return;
@@ -191,7 +191,7 @@ void JustifyView::setMaxHeight(qreal height)
     emit maxHeightChanged();
 }
 
-void JustifyView::updatePolish()
+void FlexView::updatePolish()
 {
     QQuickFlickable::updatePolish();
 
@@ -203,31 +203,32 @@ void JustifyView::updatePolish()
     d->layout();
 }
 
-void JustifyView::geometryChanged(const QRectF &newRect, const QRectF &oldRect)
+void FlexView::geometryChanged(const QRectF &newRect, const QRectF &oldRect)
 {
+    qCDebug(lcView) << "geometryChanged" << newRect << oldRect;
     QQuickFlickable::geometryChanged(newRect, oldRect);
     if (newRect.size() != oldRect.size())
         polish();
 }
 
-JustifyViewPrivate::JustifyViewPrivate(JustifyView *q)
+FlexViewPrivate::FlexViewPrivate(FlexView *q)
     : QObject(q)
     , q(q)
 {
 }
 
-JustifyViewPrivate::~JustifyViewPrivate()
+FlexViewPrivate::~FlexViewPrivate()
 {
 }
 
-void JustifyViewPrivate::clear()
+void FlexViewPrivate::clear()
 {
     pendingChanges.clear();
     modelSizeRole = -1;
     delegateValidated = false;
 }
 
-void JustifyViewPrivate::modelUpdated(const QQmlChangeSet &changes, bool reset)
+void FlexViewPrivate::modelUpdated(const QQmlChangeSet &changes, bool reset)
 {
     qCDebug(lcLayout) << "model updated" << changes << reset;
     if (reset) {
@@ -242,7 +243,7 @@ void JustifyViewPrivate::modelUpdated(const QQmlChangeSet &changes, bool reset)
     q->polish();
 }
 
-void JustifyViewPrivate::initItem(int index, QObject *object)
+void FlexViewPrivate::initItem(int index, QObject *object)
 {
     QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
     if (item) {
@@ -251,13 +252,13 @@ void JustifyViewPrivate::initItem(int index, QObject *object)
     }
 }
 
-void JustifyViewPrivate::createdItem(int index, QObject *object)
+void FlexViewPrivate::createdItem(int index, QObject *object)
 {
     QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
     qCDebug(lcDelegate) << "created index" << index << item;
 }
 
-void JustifyViewPrivate::destroyingItem(QObject *object)
+void FlexViewPrivate::destroyingItem(QObject *object)
 {
     QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
     if (item) {
@@ -266,7 +267,7 @@ void JustifyViewPrivate::destroyingItem(QObject *object)
     }
 }
 
-void JustifyViewPrivate::layout()
+void FlexViewPrivate::layout()
 {
     if (!q->isComponentComplete())
         return;
@@ -305,7 +306,7 @@ void JustifyViewPrivate::layout()
     updateContentHeight(y);
 }
 
-void JustifyViewPrivate::updateContentHeight(qreal layoutHeight)
+void FlexViewPrivate::updateContentHeight(qreal layoutHeight)
 {
     if (sections.isEmpty()) {
         q->setContentHeight(layoutHeight);
@@ -329,7 +330,7 @@ void JustifyViewPrivate::updateContentHeight(qreal layoutHeight)
     q->setContentHeight(layoutHeight + estimated);
 }
 
-bool JustifyViewPrivate::applyPendingChanges()
+bool FlexViewPrivate::applyPendingChanges()
 {
     if (pendingChanges.isEmpty())
         return false;
@@ -471,7 +472,7 @@ bool JustifyViewPrivate::applyPendingChanges()
 }
 
 // XXX disable except for debugging
-void JustifyViewPrivate::validateSections()
+void FlexViewPrivate::validateSections()
 {
     int modelCount = model->count();
     FlexSection *prevSection = nullptr;
@@ -493,7 +494,7 @@ void JustifyViewPrivate::validateSections()
     }
 }
 
-bool JustifyViewPrivate::refill()
+bool FlexViewPrivate::refill()
 {
     FlexSection *section = sections.isEmpty() ? nullptr : sections.last();
     int lastIndex = section ? section->mapToView(section->count - 1) : -1;
@@ -515,7 +516,7 @@ bool JustifyViewPrivate::refill()
     return sectionAdded;
 }
 
-QQuickItem *JustifyViewPrivate::createItem(int index)
+QQuickItem *FlexViewPrivate::createItem(int index)
 {
     QObject *object = model->object(index, QQmlIncubator::AsynchronousIfNested);
     QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
@@ -535,7 +536,7 @@ QQuickItem *JustifyViewPrivate::createItem(int index)
     return item;
 }
 
-QString JustifyViewPrivate::sectionValue(int index) const
+QString FlexViewPrivate::sectionValue(int index) const
 {
     if (sectionRole.isEmpty())
         return QString();
@@ -543,7 +544,10 @@ QString JustifyViewPrivate::sectionValue(int index) const
         return model->stringValue(index, sectionRole);
 }
 
-qreal JustifyViewPrivate::indexFlexRatio(int index)
+// XXX Ditching delegate model for just the QQmlAdaptorModel seems plausible and
+// much nicer ultimately.
+
+qreal FlexViewPrivate::indexFlexRatio(int index)
 {
     // XXX
     static QMap<int,double> fake;
