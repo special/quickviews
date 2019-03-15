@@ -134,10 +134,57 @@ void JustifyView::setSectionRole(const QString &role)
     emit sectionRoleChanged();
 }
 
+qreal JustifyView::idealHeight() const
+{
+    return d->idealHeight;
+}
+
+void JustifyView::setIdealHeight(qreal height)
+{
+    if (d->idealHeight == height)
+        return;
+    d->idealHeight = height;
+    polish();
+    emit idealHeightChanged();
+}
+
+qreal JustifyView::minHeight() const
+{
+    return d->minHeight;
+}
+
+void JustifyView::setMinHeight(qreal height)
+{
+    if (d->minHeight == height)
+        return;
+    d->minHeight = height;
+    polish();
+    emit minHeightChanged();
+}
+
+qreal JustifyView::maxHeight() const
+{
+    return d->maxHeight;
+}
+
+void JustifyView::setMaxHeight(qreal height)
+{
+    if (d->maxHeight == height)
+        return;
+    d->maxHeight = height;
+    polish();
+    emit maxHeightChanged();
+}
+
 void JustifyView::updatePolish()
 {
     QQuickFlickable::updatePolish();
-    qCDebug(lcView) << "updatePolish" << isComponentComplete();
+
+    if (d->idealHeight > 0 && d->minHeight < 1)
+        setMinHeight(d->idealHeight * 0.75);
+    if (d->idealHeight > 0 && d->maxHeight < 1)
+        setMaxHeight(d->idealHeight * 1.25);
+
     d->layout();
 }
 
@@ -225,7 +272,7 @@ void JustifyViewPrivate::layout()
 
         FlexSection *section = sections[s];
         section->setViewportWidth(viewportWidth);
-        section->setIdealHeight(160, 200, 240);
+        section->setIdealHeight(minHeight, idealHeight, maxHeight);
         section->layout();
 
         QRectF visibleSectionArea = visibleArea.intersected(QRectF(x, y, visibleArea.width()-x, section->height));

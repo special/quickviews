@@ -27,6 +27,10 @@ public:
     QString sectionRole;
     QString sizeRole;
 
+    qreal idealHeight = 0;
+    qreal minHeight = 0;
+    qreal maxHeight = 0;
+
     JustifyViewPrivate(JustifyView *q);
     virtual ~JustifyViewPrivate();
 

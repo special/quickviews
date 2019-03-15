@@ -118,6 +118,11 @@ bool FlexSection::layout()
     if (!dirty)
         return false;
 
+    if (minHeight > idealHeight || maxHeight < idealHeight) {
+        qCWarning(lcFlex) << "Impossible layout constraints with min/max/ideal" << minHeight << idealHeight << maxHeight;
+        idealHeight = -1;
+    }
+
     layoutRows.clear();
     height = 0;
     if (viewportWidth < 1 || minHeight < 1 || idealHeight < 1 || maxHeight < 1) {
@@ -201,6 +206,7 @@ bool FlexSection::layout()
                 layoutRows.append(row);
             else if (row.cost < layoutRows[0].cost)
                 layoutRows[0] = row;
+            height = row.height;
         } else if (row.start == layoutRows[0].prevStart) {
             Q_ASSERT(row.end == layoutRows[0].start-1);
             // XXX This isn't ideal; prepend is slow on vector
