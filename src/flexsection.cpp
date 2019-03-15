@@ -203,18 +203,20 @@ bool FlexSection::layout()
                 layoutRows[0] = row;
         } else if (row.start == layoutRows[0].prevStart) {
             Q_ASSERT(row.end == layoutRows[0].start-1);
-            // This isn't ideal; prepend is slow on vector
+            // XXX This isn't ideal; prepend is slow on vector
             layoutRows.prepend(row);
+            height += row.height;
         }
     }
 
-    qCDebug(lcFlexLayout) << "selected rows:";
-    for (const auto &row : layoutRows) {
-        qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "height" << row.height;
-        this->height += row.height;
+    if (lcFlexLayout().isDebugEnabled()) {
+        qCDebug(lcFlexLayout) << "selected rows:";
+        for (const auto &row : layoutRows) {
+            qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "height" << row.height;
+        }
     }
 
-    qCDebug(lcFlex) << "layout has" << layoutRows.size() << "rows for" << count << "items; considered" << rows.size() << "rows from" << nStartPositions << "positions in" << tm.elapsed() << "ms";
+    qCDebug(lcFlex) << "layout:" << layoutRows.size() << "rows for" << count << "items in" << height << "px; considered" << rows.size() << "rows from" << nStartPositions << "positions in" << tm.elapsed() << "ms";
     dirty = false;
     return true;
 }
@@ -287,4 +289,13 @@ void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
         view->model->release(*it);
         it = delegates.erase(it);
     }
+}
+
+void FlexSection::releaseDelegates()
+{
+    for (auto item : delegates) {
+        item->setVisible(false);
+        view->model->release(item);
+    }
+    delegates.clear();
 }

@@ -219,7 +219,7 @@ void JustifyViewPrivate::layout()
     qreal x = 0, y = 0;
     for (int s = 0; ; s++) {
         if (s >= sections.size()) {
-            if (!refill())
+            if (y > visibleArea.bottom() || !refill())
                 break;
         }
 
@@ -231,8 +231,7 @@ void JustifyViewPrivate::layout()
         QRectF visibleSectionArea = visibleArea.intersected(QRectF(x, y, visibleArea.width()-x, section->height));
         if (visibleSectionArea.isEmpty()) {
             qCDebug(lcLayout) << "section" << s << "y" << y << "h" << section->height << "not visible";
-            if (y > visibleArea.bottom())
-                break;
+            section->releaseDelegates();
             y += section->height;
             continue;
         }
@@ -241,7 +240,31 @@ void JustifyViewPrivate::layout()
         y += section->height;
     }
 
-    q->setContentHeight(y);
+    updateContentHeight(y);
+}
+
+void JustifyViewPrivate::updateContentHeight(qreal layoutHeight)
+{
+    if (sections.isEmpty()) {
+        q->setContentHeight(layoutHeight);
+        return;
+    }
+
+    int lastIndex = sections.last()->mapToView(sections.last()->count-1);
+    int remaining = model->count() - lastIndex - 1;
+    qreal estimated = 0;
+
+    if (layoutHeight > 0 && lastIndex > 0 && remaining > 0) {
+        // Average the height-per-item for the remaining rows
+        estimated = (layoutHeight / lastIndex) * remaining;
+        qCDebug(lcLayout) << "contentHeight:" << (layoutHeight + estimated) << "with"
+            << layoutHeight << "for existing" << lastIndex << "items, estimated"
+            << estimated << "for remaining" << remaining << "items";
+    } else if (q->contentHeight() != layoutHeight) {
+        qCDebug(lcLayout) << "contentHeight:" << q->contentHeight() << "->" << layoutHeight + estimated;
+    }
+
+    q->setContentHeight(layoutHeight + estimated);
 }
 
 bool JustifyViewPrivate::applyPendingChanges()

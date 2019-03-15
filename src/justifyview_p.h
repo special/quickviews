@@ -31,6 +31,7 @@ public:
     virtual ~JustifyViewPrivate();
 
     void layout();
+    void updateContentHeight(qreal layoutHeight);
     bool applyPendingChanges();
     void validateSections();
     bool refill();

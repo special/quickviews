@@ -46,6 +46,7 @@ public:
 
     bool layout();
     void layoutDelegates(double y, const QRectF &visibleArea);
+    void releaseDelegates();
 
 private:
     QVector<FlexRow> layoutRows;
