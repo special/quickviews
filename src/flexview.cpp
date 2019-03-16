@@ -241,6 +241,9 @@ void FlexViewPrivate::clear()
     pendingChanges.clear();
     modelSizeRole = -1;
     delegateValidated = false;
+    for (FlexSection *section : sections)
+        delete section;
+    sections.clear();
 }
 
 void FlexViewPrivate::modelUpdated(const QQmlChangeSet &changes, bool reset)
