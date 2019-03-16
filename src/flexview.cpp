@@ -119,6 +119,21 @@ void FlexView::setDelegate(QQmlComponent *delegate)
     emit delegateChanged();
 }
 
+QQmlComponent *FlexView::section() const
+{
+    return d->sectionDelegate;
+}
+
+void FlexView::setSection(QQmlComponent *delegate)
+{
+    if (delegate == d->sectionDelegate)
+        return;
+
+    d->sectionDelegate = delegate;
+    d->clear();
+    emit sectionChanged();
+}
+
 QString FlexView::sectionRole() const
 {
     return d->sectionRole;
@@ -294,7 +309,7 @@ void FlexViewPrivate::layout()
         QRectF visibleSectionArea = visibleArea.intersected(QRectF(x, y, visibleArea.width()-x, section->height));
         if (visibleSectionArea.isEmpty()) {
             qCDebug(lcLayout) << "section" << s << "y" << y << "h" << section->height << "not visible";
-            section->releaseDelegates();
+            section->releaseSectionDelegate();
             y += section->height;
             continue;
         }
@@ -518,6 +533,7 @@ bool FlexViewPrivate::refill()
 
 QQuickItem *FlexViewPrivate::createItem(int index)
 {
+    // XXX AsynchronousIfNested isn't being handled correctly below
     QObject *object = model->object(index, QQmlIncubator::AsynchronousIfNested);
     QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
     if (!item) {

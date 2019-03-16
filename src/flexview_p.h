@@ -23,6 +23,7 @@ public:
 
     QQmlChangeSet pendingChanges;
 
+    QQmlGuard<QQmlComponent> sectionDelegate;
     QList<FlexSection*> sections;
     QString sectionRole;
     QString sizeRole;

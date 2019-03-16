@@ -11,6 +11,7 @@ class FlexView : public QQuickFlickable
 
     Q_PROPERTY(QVariant model READ model WRITE setModel NOTIFY modelChanged)
     Q_PROPERTY(QQmlComponent* delegate READ delegate WRITE setDelegate NOTIFY delegateChanged)
+    Q_PROPERTY(QQmlComponent* section READ section WRITE setSection NOTIFY sectionChanged)
     Q_PROPERTY(QString sectionRole READ sectionRole WRITE setSectionRole NOTIFY sectionRoleChanged)
     Q_PROPERTY(QString sizeRole READ sizeRole WRITE setSizeRole NOTIFY sizeRoleChanged)
     Q_PROPERTY(qreal idealHeight READ idealHeight WRITE setIdealHeight NOTIFY idealHeightChanged)
@@ -26,6 +27,9 @@ public:
 
     QQmlComponent *delegate() const;
     void setDelegate(QQmlComponent *delegate);
+
+    QQmlComponent *section() const;
+    void setSection(QQmlComponent *sectionDelegate);
 
     QString sectionRole() const;
     void setSectionRole(const QString &role);
@@ -43,6 +47,7 @@ public:
 signals:
     void modelChanged();
     void delegateChanged();
+    void sectionChanged();
     void sectionRoleChanged();
     void sizeRoleChanged();
     void idealHeightChanged();

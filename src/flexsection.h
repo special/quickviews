@@ -18,6 +18,8 @@ public:
     int viewStart = -1;
     int count = 0;
 
+    QQuickItem *sectionItem = nullptr;
+
     FlexSection(FlexViewPrivate *view, const QString &value);
     virtual ~FlexSection();
 
@@ -46,7 +48,10 @@ public:
 
     bool layout();
     void layoutDelegates(double y, const QRectF &visibleArea);
-    void releaseDelegates();
+    void releaseDelegates(int first = 0, int last = -1);
+    void releaseSectionDelegate();
+
+    QQuickItem *ensureItem();
 
 private:
     QVector<FlexRow> layoutRows;

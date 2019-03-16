@@ -41,11 +41,7 @@ void FlexSection::clear()
     height = 0;
     count = 0;
     layoutRows.clear();
-    for (auto item : delegates) {
-        item->setVisible(false);
-        view->model->release(item);
-    }
-    delegates.clear();
+    releaseSectionDelegate();
     dirty = false;
 }
 
@@ -238,26 +234,33 @@ qreal FlexSection::badness(const FlexRow &row) const
     }
 }
 
-void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
+void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
 {
     Q_ASSERT(!dirty);
 
+    if (!ensureItem()) {
+        qCWarning(lcFlex) << "failed to create section delegate";
+        return;
+    }
+    sectionItem->setPosition(QPointF(0, sectionY));
+    sectionItem->setSize(QSizeF(viewportWidth, height));
+
+    QRectF visibleArea = sectionItem->mapRectFromItem(view->q->contentItem(), sectionArea);
+    double y = 0;
+
     auto row = layoutRows.constBegin();
     for (; row != layoutRows.constEnd(); row++) {
-        if (visibleArea.intersects(QRectF(visibleArea.x(), y, visibleArea.width(), row->height)))
+        if (y+row->height >= visibleArea.top())
             break;
         y += row->height;
     }
-    if (row == layoutRows.constEnd())
-        return;
 
-    int first = row->start;
-    while (!delegates.isEmpty() && delegates.firstKey() < first) {
-        auto first = delegates.first();
-        first->setVisible(false);
-        view->model->release(first);
-        delegates.erase(delegates.begin());
+    if (row == layoutRows.constEnd()) {
+        releaseDelegates();
+        return;
     }
+    if (row->start > 0)
+        releaseDelegates(0, row->start - 1);
 
     double x = 0;
     for (int i = row->start; i < count; i++) {
@@ -277,6 +280,8 @@ void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
             item = view->createItem(mapToView(i));
             if (!item)
                 return;
+            // XXX should not be reparenting
+            item->setParentItem(sectionItem);
             delegates.insert(i, item);
         }
         double ratio = view->indexFlexRatio(mapToView(i));
@@ -289,19 +294,58 @@ void FlexSection::layoutDelegates(double y, const QRectF &visibleArea)
         x += width;
     }
 
-    int last = row->end;
-    for (auto it = delegates.lowerBound(last+1); it != delegates.end(); ) {
+    releaseDelegates(row->end + 1);
+}
+
+void FlexSection::releaseSectionDelegate()
+{
+    releaseDelegates();
+    if (sectionItem) {
+        sectionItem->setVisible(false);
+        sectionItem->deleteLater();
+        sectionItem = nullptr;
+    }
+}
+
+void FlexSection::releaseDelegates(int first, int last)
+{
+    auto it = delegates.begin();
+    if (first > 0)
+        it = delegates.lowerBound(first);
+    while (it != delegates.end()) {
+        if (last >= 0 && it.key() > last)
+            break;
         (*it)->setVisible(false);
         view->model->release(*it);
         it = delegates.erase(it);
     }
 }
 
-void FlexSection::releaseDelegates()
+QQuickItem *FlexSection::ensureItem()
 {
-    for (auto item : delegates) {
-        item->setVisible(false);
-        view->model->release(item);
+    if (sectionItem)
+        return sectionItem;
+    if (!view->sectionDelegate) {
+        qCWarning(lcFlex) << "Section delegate is not set";
+        return nullptr;
     }
-    delegates.clear();
+
+    Q_ASSERT(qmlContext(view->q));
+    QQmlContext *context = new QQmlContext(qmlContext(view->q), this);
+
+    QVariantMap properties{{"name", value}};
+    context->setProperty("section", properties);
+
+    QObject *object = view->sectionDelegate->beginCreate(context);
+    if (!(sectionItem = qobject_cast<QQuickItem*>(object))) {
+        qCWarning(lcFlex) << "Section delegate must be an Item";
+        view->sectionDelegate->completeCreate();
+        object->deleteLater();
+        return nullptr;
+    }
+    QQml_setParent_noEvent(sectionItem, this);
+    sectionItem->setParentItem(view->q->contentItem());
+    view->sectionDelegate->completeCreate();
+
+    return sectionItem;
 }
