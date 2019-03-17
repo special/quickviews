@@ -344,8 +344,30 @@ QQuickItem *FlexSection::ensureItem()
         return nullptr;
     }
     QQml_setParent_noEvent(sectionItem, this);
+    sectionItem->setProperty("_flexsection", QVariant::fromValue(this));
     sectionItem->setParentItem(view->q->contentItem());
     view->sectionDelegate->completeCreate();
 
     return sectionItem;
+}
+
+FlexSectionItem *FlexSection::qmlAttachedProperties(QObject *obj)
+{
+    FlexSection *section = obj->property("_flexsection").value<FlexSection*>();
+    if (!section)
+        return nullptr;
+
+    FlexSectionItem *item = new FlexSectionItem(section, static_cast<QQuickItem*>(obj));
+    return item;
+}
+
+FlexSectionItem::FlexSectionItem(FlexSection *section, QQuickItem *item)
+    : QObject(item)
+    , m_section(section)
+    , m_item(item)
+{
+}
+
+FlexSectionItem::~FlexSectionItem()
+{
 }

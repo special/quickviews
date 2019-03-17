@@ -291,7 +291,8 @@ void FlexViewPrivate::layout()
         return;
 
     applyPendingChanges();
-    validateSections();
+    if (lcLayout().isDebugEnabled())
+        validateSections();
 
     QRectF visibleArea(q->contentX(), q->contentY(), q->width(), q->height());
     qreal viewportWidth = q->width(); // XXX contentWidth?
@@ -489,7 +490,6 @@ bool FlexViewPrivate::applyPendingChanges()
     return true;
 }
 
-// XXX disable except for debugging
 void FlexViewPrivate::validateSections()
 {
     int modelCount = model->count();
@@ -563,22 +563,13 @@ QString FlexViewPrivate::sectionValue(int index) const
         return model->stringValue(index, sectionRole);
 }
 
-// XXX Ditching delegate model for just the QQmlAdaptorModel seems plausible and
-// much nicer ultimately.
-
 qreal FlexViewPrivate::indexFlexRatio(int index)
 {
-    // XXX
-    static QMap<int,double> fake;
-    if (!fake.contains(index))
-        fake.insert(index, QRandomGenerator::global()->generateDouble());
-    return fake.value(index);
-
     QQmlDelegateModel *delegateModel = qobject_cast<QQmlDelegateModel*>(model);
     if (!model || sizeRole.isEmpty())
         return 1;
 
-    // XXX delegate model only provides ::stringValue()...
+    // delegate model only provides ::stringValue()...
     QAbstractItemModel *aim = qobject_cast<QAbstractItemModel*>(delegateModel->model().value<QObject*>());
     if (!aim) {
         qCWarning(lcView) << "Only AbstractItemModel is supported for sizeRole";

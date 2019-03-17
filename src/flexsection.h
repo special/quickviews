@@ -3,6 +3,7 @@
 #include "flexview_p.h"
 
 class FlexRow;
+class FlexSectionItem;
 
 class FlexSection : public QObject
 {
@@ -53,6 +54,8 @@ public:
 
     QQuickItem *ensureItem();
 
+    static FlexSectionItem *qmlAttachedProperties(QObject *obj);
+
 private:
     QVector<FlexRow> layoutRows;
     QMap<int, QQuickItem*> delegates;
@@ -63,4 +66,22 @@ private:
     bool dirty = true;
 
     qreal badness(const FlexRow &row) const;
+};
+QML_DECLARE_TYPEINFO(FlexSection, QML_HAS_ATTACHED_PROPERTIES)
+
+class FlexSectionItem : public QObject
+{
+    Q_OBJECT
+
+    Q_PROPERTY(QString name READ name CONSTANT)
+
+public:
+    FlexSectionItem(FlexSection *section, QQuickItem *item);
+    virtual ~FlexSectionItem();
+
+    QString name() const { return m_section->value; }
+
+private:
+    FlexSection *m_section;
+    QQuickItem *m_item;
 };
