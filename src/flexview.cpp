@@ -382,10 +382,10 @@ bool FlexViewPrivate::applyPendingChanges()
 
         for (int s = 0; s < sections.size(); s++) {
             FlexSection *section = sections[s];
-            if (section->viewStart > index + count) {
+            if (section->viewStart >= index + count) {
                 section->viewStart += count;
                 continue;
-            } else if (index < section->viewStart) {
+            } else if (section->viewStart < index) {
                 continue;
             }
 
