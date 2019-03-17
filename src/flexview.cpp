@@ -1,7 +1,6 @@
 #include "flexview_p.h"
 #include "flexsection.h"
 #include <QtQml>
-#include <QLoggingCategory>
 #include <QQmlComponent>
 #include <QtQml/private/qqmldelegatemodel_p.h>
 

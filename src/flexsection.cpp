@@ -1,11 +1,10 @@
 #include "flexsection.h"
-#include <QLoggingCategory>
 
 // FlexSection contains a range of rows to be laid out as a discrete section. It manages
 // layout geometry and delegates within its range.
 
-Q_LOGGING_CATEGORY(lcFlex, "crimson.flexview.flex")
-Q_LOGGING_CATEGORY(lcFlexLayout, "crimson.flexview.flex.layout")
+Q_LOGGING_CATEGORY(lcSection, "crimson.flexview.section")
+Q_LOGGING_CATEGORY(lcFlexLayout, "crimson.flexview.layout.flex", QtWarningMsg)
 
 struct FlexRow
 {
@@ -115,7 +114,7 @@ bool FlexSection::layout()
         return false;
 
     if (minHeight > idealHeight || maxHeight < idealHeight) {
-        qCWarning(lcFlex) << "Impossible layout constraints with min/max/ideal" << minHeight << idealHeight << maxHeight;
+        qCWarning(lcSection) << "Impossible layout constraints with min/ideal/max" << minHeight << idealHeight << maxHeight;
         idealHeight = -1;
     }
 
@@ -133,6 +132,8 @@ bool FlexSection::layout()
     QVector<FlexRow> openRows{FlexRow(0)};
     int nStartPositions = 0;
 
+    qCDebug(lcFlexLayout) << "layout for section viewStart" << viewStart << "count" << count;
+
     for (int i = 0; i < count; i++) {
         qreal ratio = view->indexFlexRatio(mapToView(i));
         if (!ratio)
@@ -149,7 +150,7 @@ bool FlexSection::layout()
                 continue;
             if (candidate.height < minHeight && candidate.end >= 0) {
                 // Below minimum height, and at least one candidate has been recorded with this start index
-                qCDebug(lcFlexLayout) << "no more rows start at" << candidate.start << "because adding"
+                qCDebug(lcFlexLayout) << ".... no more rows start at" << candidate.start << "because adding"
                     << i << "reduces height to" << candidate.height << "with minimum" << minHeight;
                 openRows.removeAt(p);
                 p--;
@@ -166,7 +167,7 @@ bool FlexSection::layout()
             } else if (row.height < minHeight) {
                 // XXX if i > row.start, the candidate ending at i-1 was just as viable.
                 // There was no way to know that at the time, and adding it now is complex.
-                qCDebug(lcFlexLayout) << "row from" << row.start << "to" << i << "height" << row.height
+                qCDebug(lcFlexLayout) << ".... row from" << row.start << "to" << i << "height" << row.height
                     << "is below minimum" << minHeight << "but no other rows can start from" << row.start;
                 openRows.removeAt(p);
                 p--;
@@ -174,7 +175,7 @@ bool FlexSection::layout()
 
             rows.append(row);
             rowsAdded++;
-            qCDebug(lcFlexLayout) << "row:" << row.start << "to" << row.end << "height" << row.height
+            qCDebug(lcFlexLayout) << ".. row:" << row.start << "to" << row.end << "height" << row.height
                 << "ratio" << row.ratio << "badness" << badness(row) << "cost" << row.cost;
         }
 
@@ -190,7 +191,7 @@ bool FlexSection::layout()
 
             nStartPositions++;
             openRows.append(next);
-            qCDebug(lcFlexLayout) << "starting row at" << next.start << "reachable by" << rowsAdded
+            qCDebug(lcFlexLayout) << ".... starting row at" << next.start << "reachable by" << rowsAdded
                 << "with cost" << next.cost << "for previous row" << next.prevStart << "to" << next.start-1;
         }
     }
@@ -213,13 +214,13 @@ bool FlexSection::layout()
     Q_ASSERT(layoutRows[0].start == 0);
 
     if (lcFlexLayout().isDebugEnabled()) {
-        qCDebug(lcFlexLayout) << "selected rows:";
+        qCDebug(lcFlexLayout) << ".. selected rows:";
         for (const auto &row : layoutRows) {
-            qCDebug(lcFlexLayout) << "\t" << row.start << "to" << row.end << "cost" << row.cost << "height" << row.height;
+            qCDebug(lcFlexLayout) << "...." << row.start << "to" << row.end << "cost" << row.cost << "height" << row.height;
         }
     }
 
-    qCDebug(lcFlex) << "layout:" << layoutRows.size() << "rows for" << count << "items in" << height << "px; considered" << rows.size() << "rows from" << nStartPositions << "positions in" << tm.elapsed() << "ms";
+    qCDebug(lcLayout) << "section:" << layoutRows.size() << "rows for" << count << "items starting" << viewStart << "in" << height << "px; considered" << rows.size() << "rows from" << nStartPositions << "positions in" << tm.elapsed() << "ms";
     dirty = false;
     return true;
 }
@@ -240,7 +241,7 @@ void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
     Q_ASSERT(!dirty);
 
     if (!ensureItem()) {
-        qCWarning(lcFlex) << "failed to create section delegate";
+        qCWarning(lcDelegate) << "failed to create section delegate";
         return;
     }
     sectionItem->setPosition(QPointF(0, sectionY));
@@ -303,6 +304,7 @@ void FlexSection::releaseSectionDelegate()
 {
     releaseDelegates();
     if (sectionItem) {
+        qCDebug(lcDelegate) << "releasing section delegate" << sectionItem;
         sectionItem->setVisible(false);
         sectionItem->deleteLater();
         sectionItem = nullptr;
@@ -311,6 +313,7 @@ void FlexSection::releaseSectionDelegate()
 
 void FlexSection::releaseDelegates(int first, int last)
 {
+    int released = 0;
     auto it = delegates.begin();
     if (first > 0)
         it = delegates.lowerBound(first);
@@ -320,7 +323,11 @@ void FlexSection::releaseDelegates(int first, int last)
         (*it)->setVisible(false);
         view->model->release(*it);
         it = delegates.erase(it);
+        released++;
     }
+
+    if (released)
+        qCDebug(lcDelegate) << "released" << released << "delegates between" << first << "and" << last;
 }
 
 QQuickItem *FlexSection::ensureItem()
@@ -328,7 +335,7 @@ QQuickItem *FlexSection::ensureItem()
     if (sectionItem)
         return sectionItem;
     if (!view->sectionDelegate) {
-        qCWarning(lcFlex) << "Section delegate is not set";
+        qCWarning(lcDelegate) << "Section delegate is not set";
         return nullptr;
     }
 
@@ -340,7 +347,7 @@ QQuickItem *FlexSection::ensureItem()
 
     QObject *object = view->sectionDelegate->beginCreate(context);
     if (!(sectionItem = qobject_cast<QQuickItem*>(object))) {
-        qCWarning(lcFlex) << "Section delegate must be an Item";
+        qCWarning(lcDelegate) << "Section delegate must be an Item";
         view->sectionDelegate->completeCreate();
         object->deleteLater();
         return nullptr;

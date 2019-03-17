@@ -2,6 +2,7 @@
 
 #include "flexview.h"
 #include <QPointer>
+#include <QLoggingCategory>
 #include <QtQml/private/qqmlobjectmodel_p.h>
 #include <QtQml/private/qqmlchangeset_p.h>
 #include <QtQml/private/qqmlguard_p.h>
@@ -53,3 +54,7 @@ public slots:
     void createdItem(int index, QObject *object);
     void destroyingItem(QObject *object);
 };
+
+Q_DECLARE_LOGGING_CATEGORY(lcView)
+Q_DECLARE_LOGGING_CATEGORY(lcLayout)
+Q_DECLARE_LOGGING_CATEGORY(lcDelegate)
