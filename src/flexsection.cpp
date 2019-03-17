@@ -265,7 +265,8 @@ void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
         releaseDelegates(0, row->start - 1);
 
     double x = 0;
-    for (int i = row->start; i < count; i++) {
+    int i;
+    for (i = row->start; i < count; i++) {
         if (i > row->end) {
             y += row->height;
             x = 0;
@@ -297,7 +298,8 @@ void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
         x += width;
     }
 
-    releaseDelegates(row->end + 1);
+    if (i < count)
+        releaseDelegates(i, -1);
 }
 
 void FlexSection::releaseSectionDelegate()
