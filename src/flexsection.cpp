@@ -121,7 +121,7 @@ bool FlexSection::layout()
 
     layoutRows.clear();
     height = 0;
-    if (viewportWidth < 1 || minHeight < 1 || idealHeight < 1 || maxHeight < 1) {
+    if (viewportWidth < 1 || minHeight < 1 || idealHeight < 1 || maxHeight < 1 || count < 1) {
         dirty = false;
         return true;
     }
@@ -203,13 +203,14 @@ bool FlexSection::layout()
             else if (row.cost < layoutRows[0].cost)
                 layoutRows[0] = row;
             height = row.height;
-        } else if (row.start == layoutRows[0].prevStart) {
-            Q_ASSERT(row.end == layoutRows[0].start-1);
+        } else if (row.start == layoutRows[0].prevStart && row.end == layoutRows[0].start-1) {
             // XXX This isn't ideal; prepend is slow on vector
             layoutRows.prepend(row);
             height += row.height;
         }
     }
+    Q_ASSERT(!layoutRows.isEmpty());
+    Q_ASSERT(layoutRows[0].start == 0);
 
     if (lcFlexLayout().isDebugEnabled()) {
         qCDebug(lcFlexLayout) << "selected rows:";
@@ -269,6 +270,7 @@ void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
             x = 0;
             row++;
             Q_ASSERT(row != layoutRows.constEnd());
+            Q_ASSERT(y+row->height <= sectionItem->height());
 
             if (y > visibleArea.bottom())
                 break;
