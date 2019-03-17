@@ -58,6 +58,7 @@ protected:
     virtual void componentComplete() override;
     virtual void updatePolish() override;
     virtual void geometryChanged(const QRectF &newRect, const QRectF &oldRect) override;
+    virtual void viewportMoved(Qt::Orientations orient) override;
 
 private:
     friend class FlexViewPrivate;

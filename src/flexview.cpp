@@ -225,6 +225,12 @@ void FlexView::geometryChanged(const QRectF &newRect, const QRectF &oldRect)
         polish();
 }
 
+void FlexView::viewportMoved(Qt::Orientations orient)
+{
+    QQuickFlickable::viewportMoved(orient);
+    polish();
+}
+
 FlexViewPrivate::FlexViewPrivate(FlexView *q)
     : QObject(q)
     , q(q)
