@@ -37,7 +37,8 @@ FlexSection::~FlexSection()
 
 void FlexSection::clear()
 {
-    height = 0;
+    m_contentHeight = 0;
+    m_estimatedHeight = 0;
     count = 0;
     layoutRows.clear();
     releaseSectionDelegate();
@@ -108,6 +109,12 @@ bool FlexSection::setIdealHeight(qreal min, qreal ideal, qreal max)
     return true;
 }
 
+qreal FlexSection::estimatedHeight() const
+{
+    // XXX This needs a decent estimation algorithm
+    return std::max(10., m_contentHeight);
+}
+
 bool FlexSection::layout()
 {
     if (!dirty)
@@ -119,7 +126,7 @@ bool FlexSection::layout()
     }
 
     layoutRows.clear();
-    height = 0;
+    m_contentHeight = 0;
     if (viewportWidth < 1 || minHeight < 1 || idealHeight < 1 || maxHeight < 1 || count < 1) {
         dirty = false;
         return true;
@@ -203,11 +210,11 @@ bool FlexSection::layout()
                 layoutRows.append(row);
             else if (row.cost < layoutRows[0].cost)
                 layoutRows[0] = row;
-            height = row.height;
+            m_contentHeight = row.height;
         } else if (row.start == layoutRows[0].prevStart && row.end == layoutRows[0].start-1) {
             // XXX This isn't ideal; prepend is slow on vector
             layoutRows.prepend(row);
-            height += row.height;
+            m_contentHeight += row.height;
         }
     }
     Q_ASSERT(!layoutRows.isEmpty());
@@ -220,7 +227,7 @@ bool FlexSection::layout()
         }
     }
 
-    qCDebug(lcLayout) << "section:" << layoutRows.size() << "rows for" << count << "items starting" << viewStart << "in" << height << "px; considered" << rows.size() << "rows from" << nStartPositions << "positions in" << tm.elapsed() << "ms";
+    qCDebug(lcLayout) << "section:" << layoutRows.size() << "rows for" << count << "items starting" << viewStart << "in" << m_contentHeight << "px; considered" << rows.size() << "rows from" << nStartPositions << "positions in" << tm.elapsed() << "ms";
     dirty = false;
     return true;
 }
@@ -236,7 +243,7 @@ qreal FlexSection::badness(const FlexRow &row) const
     }
 }
 
-void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
+void FlexSection::layoutDelegates(const QRectF &visibleArea)
 {
     Q_ASSERT(!dirty);
 
@@ -244,10 +251,14 @@ void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
         qCWarning(lcDelegate) << "failed to create section delegate";
         return;
     }
-    sectionItem->setPosition(QPointF(0, sectionY));
-    sectionItem->setSize(QSizeF(viewportWidth, height));
+    QQuickItem *contentItem = m_sectionItem->contentItem();
+    if (!contentItem) {
+        qCWarning(lcDelegate) << "failed to create section contentItem";
+        return;
+    }
+    contentItem->setSize(QSizeF(viewportWidth, m_contentHeight));
 
-    QRectF visibleArea = sectionItem->mapRectFromItem(view->q->contentItem(), sectionArea);
+    // visibleArea is already in contentItem coordinates
     double y = 0;
 
     auto row = layoutRows.constBegin();
@@ -272,7 +283,7 @@ void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
             x = 0;
             row++;
             Q_ASSERT(row != layoutRows.constEnd());
-            Q_ASSERT(y+row->height <= sectionItem->height());
+            Q_ASSERT(y+row->height <= m_contentHeight);
 
             if (y > visibleArea.bottom())
                 break;
@@ -285,7 +296,7 @@ void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
             if (!item)
                 return;
             // XXX should not be reparenting
-            item->setParentItem(sectionItem);
+            item->setParentItem(contentItem);
             delegates.insert(i, item);
         }
         double ratio = view->indexFlexRatio(mapToView(i));
@@ -305,11 +316,10 @@ void FlexSection::layoutDelegates(double sectionY, const QRectF &sectionArea)
 void FlexSection::releaseSectionDelegate()
 {
     releaseDelegates();
-    if (sectionItem) {
-        qCDebug(lcDelegate) << "releasing section delegate" << sectionItem;
-        sectionItem->setVisible(false);
-        sectionItem->deleteLater();
-        sectionItem = nullptr;
+    if (m_sectionItem) {
+        qCDebug(lcDelegate) << "releasing section delegate" << m_sectionItem;
+        m_sectionItem->destroy();
+        m_sectionItem = nullptr;
     }
 }
 
@@ -332,10 +342,10 @@ void FlexSection::releaseDelegates(int first, int last)
         qCDebug(lcDelegate) << "released" << released << "delegates between" << first << "and" << last;
 }
 
-QQuickItem *FlexSection::ensureItem()
+FlexSectionItem *FlexSection::ensureItem()
 {
-    if (sectionItem)
-        return sectionItem;
+    if (m_sectionItem)
+        return m_sectionItem;
     if (!view->sectionDelegate) {
         qCWarning(lcDelegate) << "Section delegate is not set";
         return nullptr;
@@ -348,18 +358,20 @@ QQuickItem *FlexSection::ensureItem()
     context->setProperty("section", properties);
 
     QObject *object = view->sectionDelegate->beginCreate(context);
-    if (!(sectionItem = qobject_cast<QQuickItem*>(object))) {
+    QQuickItem *item = qobject_cast<QQuickItem*>(object);
+    if (!item) {
         qCWarning(lcDelegate) << "Section delegate must be an Item";
         view->sectionDelegate->completeCreate();
         object->deleteLater();
         return nullptr;
     }
-    QQml_setParent_noEvent(sectionItem, this);
-    sectionItem->setProperty("_flexsection", QVariant::fromValue(this));
-    sectionItem->setParentItem(view->q->contentItem());
+    QQml_setParent_noEvent(item, this);
+    item->setProperty("_flexsection", QVariant::fromValue(this));
+    item->setParentItem(view->q->contentItem());
     view->sectionDelegate->completeCreate();
 
-    return sectionItem;
+    m_sectionItem = new FlexSectionItem(this, item);
+    return m_sectionItem;
 }
 
 FlexSectionItem *FlexSection::qmlAttachedProperties(QObject *obj)
@@ -367,9 +379,7 @@ FlexSectionItem *FlexSection::qmlAttachedProperties(QObject *obj)
     FlexSection *section = obj->property("_flexsection").value<FlexSection*>();
     if (!section)
         return nullptr;
-
-    FlexSectionItem *item = new FlexSectionItem(section, static_cast<QQuickItem*>(obj));
-    return item;
+    return section->m_sectionItem;
 }
 
 FlexSectionItem::FlexSectionItem(FlexSection *section, QQuickItem *item)
@@ -381,4 +391,34 @@ FlexSectionItem::FlexSectionItem(FlexSection *section, QQuickItem *item)
 
 FlexSectionItem::~FlexSectionItem()
 {
+}
+
+QQuickItem *FlexSectionItem::contentItem()
+{
+    if (!m_contentItem) {
+        m_contentItem = new QQuickItem(m_item);
+    }
+
+    return m_contentItem;
+}
+
+void FlexSectionItem::setContentItem(QQuickItem *item)
+{
+    if (item == m_contentItem)
+        return;
+
+    if (m_contentItem) {
+        for (auto child : m_contentItem->childItems())
+            child->setParentItem(item);
+    }
+
+    m_contentItem = item;
+    emit contentItemChanged();
+}
+
+void FlexSectionItem::destroy()
+{
+    // m_item owns this object and m_contentItem, and it must destroy first
+    m_item->setVisible(false);
+    m_item->deleteLater();
 }

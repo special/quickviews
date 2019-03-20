@@ -315,16 +315,30 @@ void FlexViewPrivate::layout()
         section->setIdealHeight(minHeight, idealHeight, maxHeight);
         section->layout();
 
-        QRectF visibleSectionArea = visibleArea.intersected(QRectF(x, y, visibleArea.width()-x, section->height));
+        qreal height = section->estimatedHeight();
+        Q_ASSERT(height > 0);
+
+        QRectF visibleSectionArea = visibleArea.intersected(QRectF(x, y, visibleArea.width()-x, height));
         if (visibleSectionArea.isEmpty()) {
-            qCDebug(lcLayout) << "section" << s << "y" << y << "h" << section->height << "not visible";
+            qCDebug(lcLayout) << "section" << s << "y" << y << "estimatedHeight" << height << "not visible";
             section->releaseSectionDelegate();
-            y += section->height;
+            y += height;
             continue;
         }
 
-        section->layoutDelegates(y, visibleSectionArea);
-        y += section->height;
+        // XXX These need change listeners
+        QQuickItem *sectionItem = section->ensureItem()->item();
+        if (!sectionItem)
+            return;
+        sectionItem->setPosition(QPointF(x, y));
+        sectionItem->setImplicitWidth(viewportWidth);
+        sectionItem->setImplicitHeight(section->contentHeight());
+
+        visibleSectionArea = section->ensureItem()->contentItem()->mapRectFromItem(q->contentItem(), visibleArea);
+
+        section->layoutDelegates(visibleSectionArea);
+
+        y += sectionItem->height();
     }
 
     updateContentHeight(y);

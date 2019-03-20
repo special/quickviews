@@ -13,13 +13,8 @@ public:
     FlexViewPrivate * const view;
     const QString value;
 
-    // XXX part of section delegate
-    double height = 0;
-
     int viewStart = -1;
     int count = 0;
-
-    QQuickItem *sectionItem = nullptr;
 
     FlexSection(FlexViewPrivate *view, const QString &value);
     virtual ~FlexSection();
@@ -48,24 +43,30 @@ public:
     void clear();
 
     bool layout();
-    void layoutDelegates(double y, const QRectF &visibleArea);
+    void layoutDelegates(const QRectF &visibleArea);
     void releaseDelegates(int first = 0, int last = -1);
     void releaseSectionDelegate();
 
-    QQuickItem *ensureItem();
+    qreal estimatedHeight() const;
+    qreal contentHeight() const { return m_contentHeight; }
 
+    FlexSectionItem *ensureItem();
     static FlexSectionItem *qmlAttachedProperties(QObject *obj);
 
 private:
+    FlexSectionItem *m_sectionItem = nullptr;
     QVector<FlexRow> layoutRows;
     QMap<int, QQuickItem*> delegates;
     qreal viewportWidth = 0;
     qreal minHeight = 0;
     qreal idealHeight = 0;
     qreal maxHeight = 0;
+    qreal m_contentHeight = 0;
+    qreal m_estimatedHeight = 0;
     bool dirty = true;
 
     qreal badness(const FlexRow &row) const;
+
 };
 QML_DECLARE_TYPEINFO(FlexSection, QML_HAS_ATTACHED_PROPERTIES)
 
@@ -74,6 +75,7 @@ class FlexSectionItem : public QObject
     Q_OBJECT
 
     Q_PROPERTY(QString name READ name CONSTANT)
+    Q_PROPERTY(QQuickItem* contentItem READ contentItem WRITE setContentItem NOTIFY contentItemChanged)
 
 public:
     FlexSectionItem(FlexSection *section, QQuickItem *item);
@@ -81,7 +83,18 @@ public:
 
     QString name() const { return m_section->value; }
 
+    QQuickItem *item() const { return m_item; }
+
+    QQuickItem *contentItem();
+    void setContentItem(QQuickItem *contentItem);
+
+    void destroy();
+
+signals:
+    void contentItemChanged();
+
 private:
     FlexSection *m_section;
     QQuickItem *m_item;
+    QQuickItem *m_contentItem = nullptr;
 };
