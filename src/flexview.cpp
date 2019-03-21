@@ -24,6 +24,7 @@ void FlexView::componentComplete()
 {
     if (d->model && d->ownModel)
         static_cast<QQmlDelegateModel*>(d->model.data())->componentComplete();
+    polish();
     QQuickFlickable::componentComplete();
 }
 
@@ -205,6 +206,21 @@ void FlexView::setMaxHeight(qreal height)
     emit maxHeightChanged();
 }
 
+qreal FlexView::cacheBuffer() const
+{
+    return d->cacheBuffer;
+}
+
+void FlexView::setCacheBuffer(qreal cacheBuffer)
+{
+    cacheBuffer = std::max(cacheBuffer, 0.);
+    if (cacheBuffer == d->cacheBuffer)
+        return;
+    d->cacheBuffer = cacheBuffer;
+    emit cacheBufferChanged();
+    polish();
+}
+
 void FlexView::updatePolish()
 {
     QQuickFlickable::updatePolish();
@@ -300,13 +316,14 @@ void FlexViewPrivate::layout()
         validateSections();
 
     QRectF visibleArea(q->contentX(), q->contentY(), q->width(), q->height());
+    QRectF cacheArea(visibleArea.adjusted(0, -cacheBuffer, 0, cacheBuffer));
     qreal viewportWidth = q->width(); // XXX contentWidth?
     qCDebug(lcLayout) << "layout area" << visibleArea << "viewportWidth" << viewportWidth;
 
     qreal x = 0, y = 0;
     for (int s = 0; ; s++) {
         if (s >= sections.size()) {
-            if (y > visibleArea.bottom() || !refill())
+            if (y > cacheArea.bottom() || !refill())
                 break;
         }
 
@@ -317,28 +334,26 @@ void FlexViewPrivate::layout()
 
         qreal height = section->estimatedHeight();
         Q_ASSERT(height > 0);
-
-        QRectF visibleSectionArea = visibleArea.intersected(QRectF(x, y, visibleArea.width()-x, height));
-        if (visibleSectionArea.isEmpty()) {
+        if (!cacheArea.intersects(QRectF(x, y, viewportWidth, height))) {
             qCDebug(lcLayout) << "section" << s << "y" << y << "estimatedHeight" << height << "not visible";
             section->releaseSectionDelegate();
             y += height;
             continue;
         }
 
-        // XXX These need change listeners
-        QQuickItem *sectionItem = section->ensureItem()->item();
+        FlexSectionItem *sectionItem = section->ensureItem();
         if (!sectionItem)
             return;
-        sectionItem->setPosition(QPointF(x, y));
-        sectionItem->setImplicitWidth(viewportWidth);
-        sectionItem->setImplicitHeight(section->contentHeight());
+        sectionItem->item()->setPosition(QPointF(x, y));
+        sectionItem->item()->setImplicitWidth(viewportWidth);
+        sectionItem->item()->setImplicitHeight(section->contentHeight());
 
-        visibleSectionArea = section->ensureItem()->contentItem()->mapRectFromItem(q->contentItem(), visibleArea);
+        QRectF sectionVisibleArea = sectionItem->contentItem()->mapRectFromItem(q->contentItem(), visibleArea);
+        QRectF sectionCacheArea = sectionItem->contentItem()->mapRectFromItem(q->contentItem(), cacheArea);
+        section->layoutDelegates(sectionVisibleArea, sectionCacheArea);
+        // XXX sectionItem can be released by layoutDelegates, although it will still exist right now
 
-        section->layoutDelegates(visibleSectionArea);
-
-        y += sectionItem->height();
+        y += sectionItem->item()->height();
     }
 
     updateContentHeight(y);

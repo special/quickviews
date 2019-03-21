@@ -32,6 +32,7 @@ public:
     qreal idealHeight = 0;
     qreal minHeight = 0;
     qreal maxHeight = 0;
+    qreal cacheBuffer = 0;
 
     FlexViewPrivate(FlexView *q);
     virtual ~FlexViewPrivate();

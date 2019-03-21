@@ -243,7 +243,7 @@ qreal FlexSection::badness(const FlexRow &row) const
     }
 }
 
-void FlexSection::layoutDelegates(const QRectF &visibleArea)
+void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cacheArea)
 {
     Q_ASSERT(!dirty);
 
@@ -258,12 +258,11 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea)
     }
     contentItem->setSize(QSizeF(viewportWidth, m_contentHeight));
 
-    // visibleArea is already in contentItem coordinates
     double y = 0;
 
     auto row = layoutRows.constBegin();
     for (; row != layoutRows.constEnd(); row++) {
-        if (y+row->height >= visibleArea.top())
+        if (y + row->height >= cacheArea.top())
             break;
         y += row->height;
     }
@@ -285,7 +284,7 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea)
             Q_ASSERT(row != layoutRows.constEnd());
             Q_ASSERT(y+row->height <= m_contentHeight);
 
-            if (y > visibleArea.bottom())
+            if (y > cacheArea.bottom())
                 break;
         }
         Q_ASSERT(i >= row->start && i <= row->end);

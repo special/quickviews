@@ -43,7 +43,7 @@ public:
     void clear();
 
     bool layout();
-    void layoutDelegates(const QRectF &visibleArea);
+    void layoutDelegates(const QRectF &visibleArea, const QRectF &cacheArea);
     void releaseDelegates(int first = 0, int last = -1);
     void releaseSectionDelegate();
 
