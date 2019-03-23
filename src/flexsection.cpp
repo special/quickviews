@@ -1,4 +1,5 @@
 #include "flexsection.h"
+#include <QtQuick/private/qquickitem_p.h>
 
 // FlexSection contains a range of rows to be laid out as a discrete section. It manages
 // layout geometry and delegates within its range.
@@ -368,6 +369,8 @@ FlexSectionItem *FlexSection::ensureItem()
     item->setProperty("_flexsection", QVariant::fromValue(this));
     item->setParentItem(view->q->contentItem());
     view->sectionDelegate->completeCreate();
+
+    QQuickItemPrivate::get(item)->addItemChangeListener(view, QQuickItemPrivate::Geometry);
 
     m_sectionItem = new FlexSectionItem(this, item);
     return m_sectionItem;

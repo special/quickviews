@@ -638,3 +638,12 @@ qreal FlexViewPrivate::indexFlexRatio(int index)
         return 1;
     }
 }
+
+void FlexViewPrivate::itemGeometryChanged(QQuickItem *item, QQuickGeometryChange change, const QRectF &)
+{
+    if (!change.heightChange())
+        return;
+
+    Q_UNUSED(item);
+    q->polish();
+}

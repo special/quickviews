@@ -6,10 +6,11 @@
 #include <QtQml/private/qqmlobjectmodel_p.h>
 #include <QtQml/private/qqmlchangeset_p.h>
 #include <QtQml/private/qqmlguard_p.h>
+#include <QtQuick/private/qquickitemchangelistener_p.h>
 
 class FlexSection;
 
-class FlexViewPrivate : public QObject
+class FlexViewPrivate : public QObject, public QQuickItemChangeListener
 {
     Q_OBJECT
 
@@ -48,6 +49,8 @@ public:
 
     QString sectionValue(int index) const;
     qreal indexFlexRatio(int index);
+
+    virtual void itemGeometryChanged(QQuickItem *item, QQuickGeometryChange change, const QRectF &oldGeometry) override;
 
 public slots:
     void modelUpdated(const QQmlChangeSet &changes, bool reset);
