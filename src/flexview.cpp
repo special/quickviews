@@ -221,6 +221,48 @@ void FlexView::setCacheBuffer(qreal cacheBuffer)
     polish();
 }
 
+int FlexView::currentIndex() const
+{
+    return d->currentIndex;
+}
+
+QQuickItem *FlexView::currentItem() const
+{
+    return d->currentItem;
+}
+
+QQuickItem *FlexView::currentSection() const
+{
+    FlexSection *section = d->currentSection();
+    if (section)
+        return section->ensureItem()->item();
+    return nullptr;
+}
+
+void FlexView::setCurrentIndex(int index)
+{
+    index = std::min(index, d->count() - 1);
+    index = std::max(index, -1);
+    if (index == d->currentIndex)
+        return;
+
+    if (d->currentItem && d->model)
+        d->model->release(d->currentItem);
+    FlexSection *oldSection = d->currentSection();
+
+    d->currentIndex = index;
+    d->currentItem = (index >= 0) ? d->createItem(index) : nullptr;
+
+    // layout will ensure that the section and section item
+    // exist,
+    d->layout();
+
+    emit currentIndexChanged();
+    emit currentItemChanged();
+    if (d->currentSection() != oldSection)
+        emit currentSectionChanged();
+}
+
 void FlexView::updatePolish()
 {
     QQuickFlickable::updatePolish();
@@ -257,6 +299,11 @@ FlexViewPrivate::~FlexViewPrivate()
 {
 }
 
+int FlexViewPrivate::count() const
+{
+    return model ? model->count() : 0;
+}
+
 void FlexViewPrivate::clear()
 {
     pendingChanges.clear();
@@ -265,6 +312,7 @@ void FlexViewPrivate::clear()
     for (FlexSection *section : sections)
         delete section;
     sections.clear();
+    q->setCurrentIndex(-1);
 }
 
 void FlexViewPrivate::modelUpdated(const QQmlChangeSet &changes, bool reset)
@@ -318,12 +366,13 @@ void FlexViewPrivate::layout()
     QRectF visibleArea(q->contentX(), q->contentY(), q->width(), q->height());
     QRectF cacheArea(visibleArea.adjusted(0, -cacheBuffer, 0, cacheBuffer));
     qreal viewportWidth = q->width(); // XXX contentWidth?
-    qCDebug(lcLayout) << "layout area" << visibleArea << "viewportWidth" << viewportWidth;
+    qCDebug(lcLayout) << "layout area" << visibleArea << "viewportWidth" << viewportWidth << "current" << currentIndex;
 
     qreal x = 0, y = 0;
+    int lastIndex = -1;
     for (int s = 0; ; s++) {
         if (s >= sections.size()) {
-            if (y > cacheArea.bottom() || !refill())
+            if ((y > cacheArea.bottom() && lastIndex >= currentIndex) || !refill())
                 break;
         }
 
@@ -332,9 +381,10 @@ void FlexViewPrivate::layout()
         section->setIdealHeight(minHeight, idealHeight, maxHeight);
         section->layout();
 
+        const bool forceLayout = (currentIndex >= section->viewStart) && (currentIndex < section->viewStart + section->count);
         qreal height = section->estimatedHeight();
         Q_ASSERT(height > 0);
-        if (!cacheArea.intersects(QRectF(x, y, viewportWidth, height))) {
+        if (!cacheArea.intersects(QRectF(x, y, viewportWidth, height)) && !forceLayout) {
             qCDebug(lcLayout) << "section" << s << "y" << y << "estimatedHeight" << height << "not visible";
             section->releaseSectionDelegate();
             y += height;
@@ -388,6 +438,9 @@ bool FlexViewPrivate::applyPendingChanges()
     if (pendingChanges.isEmpty())
         return false;
 
+    int newCurrentIndex = currentIndex;
+    FlexSection *oldCurrentSection = currentSection();
+
     for (const auto &remove : pendingChanges.removes()) {
         int first = remove.start();
         int count = remove.count;
@@ -408,6 +461,13 @@ bool FlexViewPrivate::applyPendingChanges()
 
             first += sectionCount;
             count -= sectionCount;
+        }
+
+        if (newCurrentIndex >= first) {
+            if (newCurrentIndex < first + count)
+                newCurrentIndex = -1;
+            else
+                newCurrentIndex -= count;
         }
     }
 
@@ -461,6 +521,9 @@ bool FlexViewPrivate::applyPendingChanges()
             else
                 section->insert(index - section->viewStart, count - from);
         }
+
+        if (newCurrentIndex >= index)
+            newCurrentIndex += count;
     }
 
     for (const auto &change : pendingChanges.changes()) {
@@ -521,6 +584,19 @@ bool FlexViewPrivate::applyPendingChanges()
     }
 
     pendingChanges.clear();
+
+    if (newCurrentIndex != currentIndex) {
+        if (newCurrentIndex < 0) {
+            q->setCurrentIndex(-1);
+        } else {
+            // The actual row/item did not change, just the integer index
+            currentIndex = newCurrentIndex;
+            emit q->currentIndexChanged();
+            if (currentSection() != oldCurrentSection)
+                emit q->currentSectionChanged();
+        }
+    }
+
     return true;
 }
 
@@ -646,4 +722,20 @@ void FlexViewPrivate::itemGeometryChanged(QQuickItem *item, QQuickGeometryChange
 
     Q_UNUSED(item);
     q->polish();
+}
+
+FlexSection *FlexViewPrivate::currentSection() const
+{
+    if (currentIndex >= 0)
+        return sectionOf(currentIndex);
+    else
+        return nullptr;
+}
+
+FlexSection *FlexViewPrivate::sectionOf(int index) const
+{
+    auto it = std::lower_bound(sections.begin(), sections.end(), index, [](FlexSection *s, int i) { return i < s->viewStart; });
+    if (it == sections.end())
+        return nullptr;
+    return *it;
 }

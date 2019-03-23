@@ -67,7 +67,7 @@ private:
     bool dirty = true;
 
     qreal badness(const FlexRow &row) const;
-
+    void layoutRow(const FlexRow &row, qreal y, bool create = true);
 };
 QML_DECLARE_TYPEINFO(FlexSection, QML_HAS_ATTACHED_PROPERTIES)
 

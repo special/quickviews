@@ -35,6 +35,9 @@ public:
     qreal maxHeight = 0;
     qreal cacheBuffer = 0;
 
+    int currentIndex = -1;
+    QQuickItem *currentItem = nullptr;
+
     FlexViewPrivate(FlexView *q);
     virtual ~FlexViewPrivate();
 
@@ -45,12 +48,17 @@ public:
     bool refill();
     void clear();
 
+    int count() const;
+
     QQuickItem *createItem(int index);
 
     QString sectionValue(int index) const;
     qreal indexFlexRatio(int index);
 
     virtual void itemGeometryChanged(QQuickItem *item, QQuickGeometryChange change, const QRectF &oldGeometry) override;
+
+    FlexSection *sectionOf(int index) const;
+    FlexSection *currentSection() const;
 
 public slots:
     void modelUpdated(const QQmlChangeSet &changes, bool reset);

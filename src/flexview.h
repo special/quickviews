@@ -18,6 +18,9 @@ class FlexView : public QQuickFlickable
     Q_PROPERTY(qreal minHeight READ minHeight WRITE setMinHeight NOTIFY minHeightChanged)
     Q_PROPERTY(qreal maxHeight READ maxHeight WRITE setMaxHeight NOTIFY maxHeightChanged)
     Q_PROPERTY(qreal cacheBuffer READ cacheBuffer WRITE setCacheBuffer NOTIFY cacheBufferChanged)
+    Q_PROPERTY(int currentIndex READ currentIndex WRITE setCurrentIndex NOTIFY currentIndexChanged)
+    Q_PROPERTY(QQuickItem* currentItem READ currentItem NOTIFY currentItemChanged)
+    Q_PROPERTY(QQuickItem* currentSection READ currentSection NOTIFY currentSectionChanged)
 
 public:
     FlexView(QQuickItem *parent = nullptr);
@@ -48,6 +51,11 @@ public:
     qreal cacheBuffer() const;
     void setCacheBuffer(qreal cacheBuffer);
 
+    int currentIndex() const;
+    void setCurrentIndex(int index);
+    QQuickItem *currentItem() const;
+    QQuickItem *currentSection() const;
+
 signals:
     void modelChanged();
     void delegateChanged();
@@ -58,6 +66,9 @@ signals:
     void minHeightChanged();
     void maxHeightChanged();
     void cacheBufferChanged();
+    void currentIndexChanged();
+    void currentItemChanged();
+    void currentSectionChanged();
 
 protected:
     virtual void componentComplete() override;

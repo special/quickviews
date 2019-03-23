@@ -283,12 +283,15 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
     m_lastSectionHeight = m_sectionItem->item()->height();
     m_lastSectionCount = count;
 
-    double y = 0;
+    qreal y = 0;
+    int currentIndex = mapToSection(view->currentIndex);
 
     auto row = layoutRows.constBegin();
     for (; row != layoutRows.constEnd(); row++) {
         if (y + row->height >= cacheArea.top())
             break;
+        if (currentIndex >= row->start && currentIndex <= row->end)
+            layoutRow(*row, y, false);
         y += row->height;
     }
 
@@ -299,42 +302,64 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
     if (row->start > 0)
         releaseDelegates(0, row->start - 1);
 
-    double x = 0;
-    int i;
-    for (i = row->start; i < count; i++) {
-        if (i > row->end) {
-            y += row->height;
-            x = 0;
-            row++;
-            Q_ASSERT(row != layoutRows.constEnd());
-            Q_ASSERT(y+row->height <= m_contentHeight);
+    for (; row != layoutRows.constEnd(); row++) {
+        if (y > cacheArea.bottom())
+            break;
 
-            if (y > cacheArea.bottom())
-                break;
+        layoutRow(*row, y);
+        y += row->height;
+        Q_ASSERT(y+row->height <= m_contentHeight);
+    }
+
+    // Release the remaining delegates before continuing to layout the current row
+    // if applicable. The current item is not affected by releaseDelegates.
+    if (row != layoutRows.constEnd())
+        releaseDelegates(row->start, -1);
+
+    for (; currentIndex >= 0 && row != layoutRows.constEnd() && row->end <= currentIndex; row++) {
+        if (currentIndex >= row->start) {
+            layoutRow(*row, y, false);
+            break;
         }
-        Q_ASSERT(i >= row->start && i <= row->end);
+        y += row->height;
+    }
+}
+
+void FlexSection::layoutRow(const FlexRow &row, qreal y, bool create)
+{
+    qreal x = 0;
+
+    for (int i = row.start; i <= row.end; i++) {
+        int viewIndex = mapToView(i);
+        // XXX It's probably worth caching these.
+        double ratio = view->indexFlexRatio(viewIndex);
+        if (!ratio)
+            ratio = 1;
+        qreal width = ratio * row.height;
 
         QQuickItem *item = delegates.value(i);
         if (!item) {
-            item = view->createItem(mapToView(i));
-            if (!item)
-                return;
-            // XXX should not be reparenting
-            item->setParentItem(contentItem);
-            delegates.insert(i, item);
-        }
-        double ratio = view->indexFlexRatio(mapToView(i));
-        if (!ratio)
-            ratio = 1;
+            if (create) {
+                item = view->createItem(viewIndex);
+                delegates.insert(i, item);
+            } else if (viewIndex == view->currentIndex) {
+                item = view->currentItem;
+            }
 
-        qreal width = ratio * row->height;
+            if (!item) {
+                x += width;
+                continue;
+            }
+
+            // XXX should not be reparenting, but note that currentItem
+            // may not have the correct parent yet
+            item->setParentItem(m_sectionItem->contentItem());
+        }
+
         item->setPosition(QPointF(x, y));
-        item->setSize(QSizeF(width, row->height));
+        item->setSize(QSizeF(width, row.height));
         x += width;
     }
-
-    if (i < count)
-        releaseDelegates(i, -1);
 }
 
 void FlexSection::releaseSectionDelegate()
