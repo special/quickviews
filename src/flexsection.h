@@ -62,7 +62,8 @@ private:
     qreal idealHeight = 0;
     qreal maxHeight = 0;
     qreal m_contentHeight = 0;
-    qreal m_estimatedHeight = 0;
+    qreal m_lastSectionHeight = 0;
+    int m_lastSectionCount = 0;
     bool dirty = true;
 
     qreal badness(const FlexRow &row) const;

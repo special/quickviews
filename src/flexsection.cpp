@@ -39,7 +39,8 @@ FlexSection::~FlexSection()
 void FlexSection::clear()
 {
     m_contentHeight = 0;
-    m_estimatedHeight = 0;
+    m_lastSectionHeight = 0;
+    m_lastSectionCount = 0;
     count = 0;
     layoutRows.clear();
     releaseSectionDelegate();
@@ -110,10 +111,31 @@ bool FlexSection::setIdealHeight(qreal min, qreal ideal, qreal max)
     return true;
 }
 
+// Return the actual section item height, if it exists.
+// Otherwise, guess based on the last known heights
+// If it has never existed, make a guess based on idealHeight
+// In all cases, use at least 10 pixels.
+//
+// The exact values here are not as important; when the section
+// item doesn't exist, they're primarily just for contentHeight
+// scrolling estimates. It is important to have at least 1px for
+// the visble/cache area to intersect.
 qreal FlexSection::estimatedHeight() const
 {
-    // XXX This needs a decent estimation algorithm
-    return std::max(10., m_contentHeight);
+    qreal estimate = 0;
+    if (m_sectionItem && m_sectionItem->item()) {
+        estimate = m_sectionItem->item()->height();
+    } else if (m_lastSectionHeight > 0 && m_lastSectionCount > 0) {
+        int delta = count - m_lastSectionCount;
+        estimate = m_lastSectionHeight + ((m_lastSectionHeight / m_lastSectionCount) * delta);
+    } else if (idealHeight > 0 && count > 0 && viewportWidth > 0) {
+        // Estimate items per row based on idealHeight, viewportWidth, and
+        // an assumption that everything is 4:3
+        int itemsPerRow = std::round(viewportWidth / (idealHeight * (4 / 3)));
+        estimate = std::ceil(double(count) / itemsPerRow) * idealHeight;
+    }
+
+    return std::max(10., estimate);
 }
 
 bool FlexSection::layout()
@@ -258,6 +280,8 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
         return;
     }
     contentItem->setSize(QSizeF(viewportWidth, m_contentHeight));
+    m_lastSectionHeight = m_sectionItem->item()->height();
+    m_lastSectionCount = count;
 
     double y = 0;
 
