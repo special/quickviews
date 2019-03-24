@@ -42,6 +42,8 @@ public:
     void change(int i, int count);
     void clear();
 
+    void setCurrentIndex(int index);
+
     bool layout();
     void layoutDelegates(const QRectF &visibleArea, const QRectF &cacheArea);
     void releaseDelegates(int first = 0, int last = -1);
@@ -64,6 +66,7 @@ private:
     qreal m_contentHeight = 0;
     qreal m_lastSectionHeight = 0;
     int m_lastSectionCount = 0;
+    int currentIndex = -1;
     bool dirty = true;
 
     qreal badness(const FlexRow &row) const;
@@ -77,6 +80,7 @@ class FlexSectionItem : public QObject
 
     Q_PROPERTY(QString name READ name CONSTANT)
     Q_PROPERTY(QQuickItem* contentItem READ contentItem WRITE setContentItem NOTIFY contentItemChanged)
+    Q_PROPERTY(bool isCurrentSection READ isCurrentSection NOTIFY isCurrentSectionChanged)
 
 public:
     FlexSectionItem(FlexSection *section, QQuickItem *item);
@@ -85,14 +89,16 @@ public:
     QString name() const { return m_section->value; }
 
     QQuickItem *item() const { return m_item; }
-
     QQuickItem *contentItem();
     void setContentItem(QQuickItem *contentItem);
+
+    bool isCurrentSection() const;
 
     void destroy();
 
 signals:
     void contentItemChanged();
+    void isCurrentSectionChanged();
 
 private:
     FlexSection *m_section;

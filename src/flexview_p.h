@@ -37,6 +37,7 @@ public:
 
     int currentIndex = -1;
     QQuickItem *currentItem = nullptr;
+    QPointer<FlexSection> currentSection;
 
     FlexViewPrivate(FlexView *q);
     virtual ~FlexViewPrivate();
@@ -58,7 +59,6 @@ public:
     virtual void itemGeometryChanged(QQuickItem *item, QQuickGeometryChange change, const QRectF &oldGeometry) override;
 
     FlexSection *sectionOf(int index) const;
-    FlexSection *currentSection() const;
 
 public slots:
     void modelUpdated(const QQmlChangeSet &changes, bool reset);

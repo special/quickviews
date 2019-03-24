@@ -233,9 +233,8 @@ QQuickItem *FlexView::currentItem() const
 
 QQuickItem *FlexView::currentSection() const
 {
-    FlexSection *section = d->currentSection();
-    if (section)
-        return section->ensureItem()->item();
+    if (d->currentSection)
+        return d->currentSection->ensureItem()->item();
     return nullptr;
 }
 
@@ -248,18 +247,31 @@ void FlexView::setCurrentIndex(int index)
 
     if (d->currentItem && d->model)
         d->model->release(d->currentItem);
-    FlexSection *oldSection = d->currentSection();
+    QPointer<FlexSection> oldSection(d->currentSection);
 
     d->currentIndex = index;
-    d->currentItem = (index >= 0) ? d->createItem(index) : nullptr;
+    d->currentItem = nullptr;
+    d->currentSection = nullptr;
 
-    // layout will ensure that the section and section item
-    // exist,
-    d->layout();
+    if (index >= 0) {
+        d->currentItem = d->createItem(index);
+        // layout will ensure that the section and section item exist
+        d->layout();
+        d->currentSection = d->sectionOf(index);
+        Q_ASSERT(d->currentSection);
+    }
+
+    if (oldSection && d->currentSection != oldSection)
+        oldSection->setCurrentIndex(-1);
+    if (d->currentSection) {
+        int sectionIndex = d->currentSection->mapToSection(d->currentIndex);
+        Q_ASSERT(sectionIndex >= 0);
+        d->currentSection->setCurrentIndex(sectionIndex);
+    }
 
     emit currentIndexChanged();
     emit currentItemChanged();
-    if (d->currentSection() != oldSection)
+    if (d->currentSection != oldSection || !d->currentSection)
         emit currentSectionChanged();
 }
 
@@ -438,8 +450,8 @@ bool FlexViewPrivate::applyPendingChanges()
     if (pendingChanges.isEmpty())
         return false;
 
-    int newCurrentIndex = currentIndex;
-    FlexSection *oldCurrentSection = currentSection();
+    int oldCurrentIndex = currentIndex;
+    QPointer<FlexSection> oldCurrentSection(currentSection);
 
     for (const auto &remove : pendingChanges.removes()) {
         int first = remove.start();
@@ -463,11 +475,11 @@ bool FlexViewPrivate::applyPendingChanges()
             count -= sectionCount;
         }
 
-        if (newCurrentIndex >= first) {
-            if (newCurrentIndex < first + count)
-                newCurrentIndex = -1;
+        if (currentIndex >= first) {
+            if (currentIndex < first + count)
+                currentIndex = -1;
             else
-                newCurrentIndex -= count;
+                currentIndex -= count;
         }
     }
 
@@ -522,8 +534,8 @@ bool FlexViewPrivate::applyPendingChanges()
                 section->insert(index - section->viewStart, count - from);
         }
 
-        if (newCurrentIndex >= index)
-            newCurrentIndex += count;
+        if (currentIndex >= index)
+            currentIndex += count;
     }
 
     for (const auto &change : pendingChanges.changes()) {
@@ -585,16 +597,24 @@ bool FlexViewPrivate::applyPendingChanges()
 
     pendingChanges.clear();
 
-    if (newCurrentIndex != currentIndex) {
-        if (newCurrentIndex < 0) {
-            q->setCurrentIndex(-1);
-        } else {
-            // The actual row/item did not change, just the integer index
-            currentIndex = newCurrentIndex;
-            emit q->currentIndexChanged();
-            if (currentSection() != oldCurrentSection)
-                emit q->currentSectionChanged();
+    if (currentIndex < 0 && oldCurrentIndex >= 0) {
+        // setCurrentIndex clears the current item as well
+        currentIndex = oldCurrentIndex;
+        q->setCurrentIndex(-1);
+    } else {
+        currentSection = (currentIndex >= 0) ? sectionOf(currentIndex) : nullptr;
+        if (oldCurrentSection && currentSection != oldCurrentSection)
+            oldCurrentSection->setCurrentIndex(-1);
+        if (currentSection) {
+            int sectionIndex = currentSection->mapToSection(currentIndex);
+            Q_ASSERT(sectionIndex >= 0);
+            currentSection->setCurrentIndex(sectionIndex);
         }
+
+        if (currentIndex != oldCurrentIndex)
+            emit q->currentIndexChanged();
+        if (currentSection != oldCurrentSection || !currentSection)
+            emit q->currentSectionChanged();
     }
 
     return true;
@@ -722,14 +742,6 @@ void FlexViewPrivate::itemGeometryChanged(QQuickItem *item, QQuickGeometryChange
 
     Q_UNUSED(item);
     q->polish();
-}
-
-FlexSection *FlexViewPrivate::currentSection() const
-{
-    if (currentIndex >= 0)
-        return sectionOf(currentIndex);
-    else
-        return nullptr;
 }
 
 FlexSection *FlexViewPrivate::sectionOf(int index) const

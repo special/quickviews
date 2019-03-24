@@ -111,6 +111,18 @@ bool FlexSection::setIdealHeight(qreal min, qreal ideal, qreal max)
     return true;
 }
 
+void FlexSection::setCurrentIndex(int index)
+{
+    if (index == currentIndex)
+        return;
+
+    currentIndex = index;
+    if (currentIndex >= 0)
+        ensureItem()->isCurrentSectionChanged();
+    else if (m_sectionItem)
+        m_sectionItem->isCurrentSectionChanged();
+}
+
 // Return the actual section item height, if it exists.
 // Otherwise, guess based on the last known heights
 // If it has never existed, make a guess based on idealHeight
@@ -465,6 +477,11 @@ void FlexSectionItem::setContentItem(QQuickItem *item)
 
     m_contentItem = item;
     emit contentItemChanged();
+}
+
+bool FlexSectionItem::isCurrentSection() const
+{
+    return m_section->view->currentSection == m_section;
 }
 
 void FlexSectionItem::destroy()
