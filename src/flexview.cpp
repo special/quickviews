@@ -14,6 +14,7 @@ FlexView::FlexView(QQuickItem *parent)
     : QQuickFlickable(parent)
     , d(new FlexViewPrivate(this))
 {
+    setFlag(QQuickItem::ItemIsFocusScope);
 }
 
 FlexView::~FlexView()
@@ -257,6 +258,7 @@ void FlexView::setCurrentIndex(int index)
         d->currentItem = d->createItem(index);
         // layout will ensure that the section and section item exist
         d->layout();
+        d->currentItem->setFocus(true);
         d->currentSection = d->sectionOf(index);
         Q_ASSERT(d->currentSection);
     }

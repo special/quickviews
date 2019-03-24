@@ -113,13 +113,15 @@ bool FlexSection::setIdealHeight(qreal min, qreal ideal, qreal max)
 
 void FlexSection::setCurrentIndex(int index)
 {
-    if (index == currentIndex)
+    index = std::max(index, -1);
+    Q_ASSERT(index < count);
+    if (index == currentIndex || index >= count)
         return;
 
     currentIndex = index;
     if (currentIndex >= 0)
-        ensureItem()->isCurrentSectionChanged();
-    else if (m_sectionItem)
+        ensureItem();
+    if (m_sectionItem)
         m_sectionItem->isCurrentSectionChanged();
 }
 
