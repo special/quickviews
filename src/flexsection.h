@@ -9,6 +9,16 @@ class FlexSection : public QObject
 {
     Q_OBJECT
 
+    enum class DirtyFlag
+    {
+        None = 0,
+        Data = 0x1,
+        Geometry = 0x2,
+        Indices = 0x4 | Data,
+        All = Indices | Geometry | Data
+    };
+    Q_DECLARE_FLAGS(DirtyFlags, DirtyFlag)
+
 public:
     FlexViewPrivate * const view;
     const QString value;
@@ -67,7 +77,7 @@ private:
     qreal m_lastSectionHeight = 0;
     int m_lastSectionCount = 0;
     int currentIndex = -1;
-    bool dirty = true;
+    DirtyFlags dirty = DirtyFlag::All;
 
     qreal badness(const FlexRow &row) const;
     void layoutRow(const FlexRow &row, qreal y, bool create = true);
@@ -80,25 +90,32 @@ class FlexSectionItem : public QObject
 
     Q_PROPERTY(QString name READ name CONSTANT)
     Q_PROPERTY(QQuickItem* contentItem READ contentItem WRITE setContentItem NOTIFY contentItemChanged)
+    Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(bool isCurrentSection READ isCurrentSection NOTIFY isCurrentSectionChanged)
+    Q_PROPERTY(QQuickItem* currentItem READ currentItem NOTIFY currentItemChanged)
 
 public:
     FlexSectionItem(FlexSection *section, QQuickItem *item);
     virtual ~FlexSectionItem();
 
     QString name() const { return m_section->value; }
+    int count() const { return m_section->count; }
 
-    QQuickItem *item() const { return m_item; }
     QQuickItem *contentItem();
     void setContentItem(QQuickItem *contentItem);
 
     bool isCurrentSection() const;
+    QQuickItem *currentItem() const;
 
+    // Non-QML API
+    QQuickItem *item() const { return m_item; }
     void destroy();
 
 signals:
+    void countChanged();
     void contentItemChanged();
     void isCurrentSectionChanged();
+    void currentItemChanged();
 
 private:
     FlexSection *m_section;

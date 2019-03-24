@@ -395,10 +395,9 @@ void FlexViewPrivate::layout()
         section->setIdealHeight(minHeight, idealHeight, maxHeight);
         section->layout();
 
-        const bool forceLayout = (currentIndex >= section->viewStart) && (currentIndex < section->viewStart + section->count);
         qreal height = section->estimatedHeight();
         Q_ASSERT(height > 0);
-        if (!cacheArea.intersects(QRectF(x, y, viewportWidth, height)) && !forceLayout) {
+        if (!cacheArea.intersects(QRectF(x, y, viewportWidth, height)) && section != currentSection) {
             qCDebug(lcLayout) << "section" << s << "y" << y << "estimatedHeight" << height << "not visible";
             section->releaseSectionDelegate();
             y += height;

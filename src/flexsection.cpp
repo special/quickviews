@@ -38,20 +38,21 @@ FlexSection::~FlexSection()
 
 void FlexSection::clear()
 {
+    releaseSectionDelegate();
     m_contentHeight = 0;
     m_lastSectionHeight = 0;
     m_lastSectionCount = 0;
     count = 0;
+    currentIndex =- 1;
     layoutRows.clear();
-    releaseSectionDelegate();
-    dirty = false;
+    dirty = 0;
 }
 
 void FlexSection::insert(int i, int c)
 {
     Q_ASSERT(i >= 0 && i <= count);
     count += c;
-    dirty = true;
+    dirty |= DirtyFlag::Indices;
 
     QMap<int, QQuickItem*> adjusted;
     for (auto it = delegates.lowerBound(i); it != delegates.end(); ) {
@@ -67,7 +68,7 @@ void FlexSection::remove(int i, int c)
     Q_ASSERT(c >= 0);
     Q_ASSERT(i+c <= count);
     count -= c;
-    dirty = true;
+    dirty |= DirtyFlag::Indices;
 
     QMap<int, QQuickItem*> adjusted;
     for (auto it = delegates.lowerBound(i); it != delegates.end(); ) {
@@ -88,7 +89,7 @@ void FlexSection::change(int i, int c)
     Q_ASSERT(i >= 0 && i < count);
     Q_ASSERT(c >= 0);
     Q_ASSERT(i+c <= count);
-    dirty = true;
+    dirty |= DirtyFlag::Data;
 }
 
 bool FlexSection::setViewportWidth(qreal width)
@@ -96,7 +97,7 @@ bool FlexSection::setViewportWidth(qreal width)
     if (viewportWidth == width)
         return false;
     viewportWidth = width;
-    dirty = true;
+    dirty |= DirtyFlag::Geometry;
     return true;
 }
 
@@ -107,7 +108,7 @@ bool FlexSection::setIdealHeight(qreal min, qreal ideal, qreal max)
     minHeight = min;
     idealHeight = ideal;
     maxHeight = max;
-    dirty = true;
+    dirty |= DirtyFlag::Geometry;
     return true;
 }
 
@@ -118,11 +119,16 @@ void FlexSection::setCurrentIndex(int index)
     if (index == currentIndex || index >= count)
         return;
 
+    bool hadCurrentIndex = currentIndex >= 0;
     currentIndex = index;
     if (currentIndex >= 0)
         ensureItem();
-    if (m_sectionItem)
-        m_sectionItem->isCurrentSectionChanged();
+
+    if (m_sectionItem) {
+        if (hadCurrentIndex != (currentIndex >= 0))
+            m_sectionItem->isCurrentSectionChanged();
+        m_sectionItem->currentItemChanged();
+    }
 }
 
 // Return the actual section item height, if it exists.
@@ -164,8 +170,11 @@ bool FlexSection::layout()
 
     layoutRows.clear();
     m_contentHeight = 0;
-    if (viewportWidth < 1 || minHeight < 1 || idealHeight < 1 || maxHeight < 1 || count < 1) {
-        dirty = false;
+    if (viewportWidth < 1 || minHeight < 1 || idealHeight < 1 || maxHeight < 1) {
+        dirty.setFlag(DirtyFlag::Geometry, false);
+        return true;
+    } else if (count < 1) {
+        dirty.setFlag(DirtyFlag::Indices, false);
         return true;
     }
 
@@ -176,7 +185,7 @@ bool FlexSection::layout()
     QVector<FlexRow> openRows{FlexRow(0)};
     int nStartPositions = 0;
 
-    qCDebug(lcFlexLayout) << "layout for section viewStart" << viewStart << "count" << count;
+    qCDebug(lcFlexLayout) << "layout for section viewStart" << viewStart << "count" << count << "dirty" << dirty;
 
     for (int i = 0; i < count; i++) {
         qreal ratio = view->indexFlexRatio(mapToView(i));
@@ -265,7 +274,11 @@ bool FlexSection::layout()
     }
 
     qCDebug(lcLayout) << "section:" << layoutRows.size() << "rows for" << count << "items starting" << viewStart << "in" << m_contentHeight << "px; considered" << rows.size() << "rows from" << nStartPositions << "positions in" << tm.elapsed() << "ms";
-    dirty = false;
+
+    if (dirty & DirtyFlag::Indices && m_sectionItem)
+        emit m_sectionItem->countChanged();
+
+    dirty = 0;
     return true;
 }
 
@@ -484,6 +497,13 @@ void FlexSectionItem::setContentItem(QQuickItem *item)
 bool FlexSectionItem::isCurrentSection() const
 {
     return m_section->view->currentSection == m_section;
+}
+
+QQuickItem *FlexSectionItem::currentItem() const
+{
+    if (isCurrentSection())
+        return m_section->view->currentItem;
+    return nullptr;
 }
 
 void FlexSectionItem::destroy()
