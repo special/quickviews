@@ -246,6 +246,8 @@ void FlexView::setCurrentIndex(int index)
     if (index == d->currentIndex)
         return;
 
+    qCDebug(lcView) << "change currentIndex" << d->currentIndex << "to" << index;
+
     if (d->currentItem && d->model)
         d->model->release(d->currentItem);
     QPointer<FlexSection> oldSection(d->currentSection);
@@ -349,6 +351,7 @@ void FlexViewPrivate::initItem(int index, QObject *object)
     QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
     if (item) {
         item->setParentItem(q->contentItem());
+        item->setVisible(false);
         qCDebug(lcDelegate) << "init index" << index << item;
     }
 }

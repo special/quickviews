@@ -368,6 +368,7 @@ void FlexSection::layoutRow(const FlexRow &row, qreal y, bool create)
         if (!item) {
             if (create) {
                 item = view->createItem(viewIndex);
+                item->setVisible(true);
                 delegates.insert(i, item);
             } else if (viewIndex == view->currentIndex) {
                 item = view->currentItem;
