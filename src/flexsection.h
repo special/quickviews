@@ -62,6 +62,14 @@ public:
     qreal estimatedHeight() const;
     qreal contentHeight() const { return m_contentHeight; }
 
+    int indexAt(const QPointF &pos) const;
+    int rowAt(qreal y) const;
+    int rowIndexAt(int row, qreal x, bool nearest = false) const;
+    QRectF geometryOf(int i) const;
+
+    int rowForIndex(int index) const;
+    int rowCount() const { return layoutRows.size(); }
+
     FlexSectionItem *ensureItem();
     static FlexSectionItem *qmlAttachedProperties(QObject *obj);
 

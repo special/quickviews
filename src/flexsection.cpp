@@ -390,6 +390,89 @@ void FlexSection::layoutRow(const FlexRow &row, qreal y, bool create)
     }
 }
 
+int FlexSection::rowAt(qreal target) const
+{
+    qreal y = 0;
+    for (int i = 0; i < layoutRows.size(); i++) {
+        y += layoutRows[i].height;
+        if (y > target)
+            return i;
+    }
+    return -1;
+}
+
+int FlexSection::rowIndexAt(int rowIndex, qreal target, bool nearest) const
+{
+    if (rowIndex < 0 || rowIndex >= layoutRows.size())
+        return -1;
+    qreal x = 0;
+    qreal dist = -1;
+    const FlexRow &row = layoutRows[rowIndex];
+    for (int i = row.start; i <= row.end; i++) {
+        int viewIndex = mapToView(i);
+        double ratio = view->indexFlexRatio(viewIndex);
+        if (!ratio)
+            ratio = 1;
+        qreal width = ratio * row.height;
+
+        if (target >= x && target < x + width) {
+            return i;
+        } else if (target < x) {
+            if (nearest)
+                return (dist < 0 || x - target < dist) ? i : i - 1;
+            else
+                break;
+        } else {
+            dist = target - (x + width);
+            x += width;
+        }
+    }
+    return nearest ? row.end : -1;
+}
+
+int FlexSection::indexAt(const QPointF &pos) const
+{
+    return rowIndexAt(rowAt(pos.y()), pos.x());
+}
+
+int FlexSection::rowForIndex(int index) const
+{
+    auto it = std::lower_bound(layoutRows.begin(), layoutRows.end(), index, [](const FlexRow &row, int i) { return row.end < i; });
+    if (it == layoutRows.end())
+        return -1;
+    Q_ASSERT(index >= it->start && index <= it->end);
+    return std::distance(layoutRows.begin(), it);
+}
+
+QRectF FlexSection::geometryOf(int index) const
+{
+    int rowIndex = rowForIndex(index);
+    if (rowIndex < 0)
+        return QRectF();
+    const FlexRow &row = layoutRows[rowIndex];
+
+    QRectF geom;
+    for (int i = 0; i < rowIndex; i++)
+        geom.setY(geom.y() + layoutRows[i].height);
+    geom.setHeight(row.height);
+
+    for (int i = row.start; i <= index; i++) {
+        // XXX This needs to be cached and not copied everywhere
+        int viewIndex = mapToView(i);
+        double ratio = view->indexFlexRatio(viewIndex);
+        if (!ratio)
+            ratio = 1;
+        qreal width = ratio * row.height;
+        if (i == index) {
+            geom.setWidth(width);
+            break;
+        }
+        geom.setX(geom.x() + width);
+    }
+
+    return geom;
+}
+
 void FlexSection::releaseSectionDelegate()
 {
     releaseDelegates();
