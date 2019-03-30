@@ -812,9 +812,9 @@ void FlexViewPrivate::itemGeometryChanged(QQuickItem *item, QQuickGeometryChange
 
 FlexSection *FlexViewPrivate::sectionOf(int index) const
 {
-    auto it = std::lower_bound(sections.begin(), sections.end(), index, [](FlexSection *s, int i) { return i < s->viewStart; });
+    auto it = std::lower_bound(sections.begin(), sections.end(), index, [](FlexSection *s, int i) { return s->mapToView(s->count-1) < i; });
     if (it == sections.end())
         return nullptr;
-    Q_ASSERT(index >= (*it)->viewStart && index < (*it)->mapToView((*it)->count - 1));
+    Q_ASSERT((*it)->mapToSection(index) >= 0);
     return *it;
 }

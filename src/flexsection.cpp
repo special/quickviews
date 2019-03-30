@@ -330,12 +330,12 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
         releaseDelegates(0, row->start - 1);
 
     for (; row != layoutRows.constEnd(); row++) {
+        Q_ASSERT(y < m_contentHeight);
         if (y > cacheArea.bottom())
             break;
 
         layoutRow(*row, y);
         y += row->height;
-        Q_ASSERT(y+row->height <= m_contentHeight);
     }
 
     // Release the remaining delegates before continuing to layout the current row
