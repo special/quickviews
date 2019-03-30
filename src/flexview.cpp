@@ -279,6 +279,65 @@ void FlexView::setCurrentIndex(int index)
         emit currentSectionChanged();
 }
 
+bool FlexView::moveCurrentRow(int delta)
+{
+    if (delta == 0)
+        return false;
+
+    d->layout();
+
+    FlexSection *section = d->currentSection;
+    int sectionIndex = -1;
+    int row = -1;
+    qreal xTarget = 0;
+
+    if (section) {
+        sectionIndex = d->sections.indexOf(section);
+        Q_ASSERT(sectionIndex >= 0);
+        int i = section->mapToSection(d->currentIndex);
+        Q_ASSERT(i >= 0);
+        row = section->rowForIndex(i);
+        Q_ASSERT(row >= 0);
+        xTarget = section->geometryOf(i).center().x();
+    } else if (delta > 0 && !d->sections.isEmpty()) {
+        sectionIndex = 0;
+        section = d->sections[0];
+    } else {
+        return false;
+    }
+    row += delta;
+
+    for (;;) {
+        Q_ASSERT(section->rowCount() > 0);
+        if (row >= section->rowCount()) {
+            if (sectionIndex >= d->sections.size() - 1) {
+                row = section->rowCount() - 1;
+                break;
+            }
+            row -= section->rowCount();
+            sectionIndex++;
+        } else if (row < 0) {
+            if (sectionIndex < 1) {
+                row = 0;
+                break;
+            }
+            sectionIndex--;
+            section = d->sections[sectionIndex];
+            row += section->rowCount();
+        } else {
+            break;
+        }
+    }
+    Q_ASSERT(row >= 0 && row < section->rowCount());
+
+    int i = section->mapToView(section->rowIndexAt(row, xTarget, true));
+    Q_ASSERT(i >= 0);
+    if (i < 0 || i == d->currentIndex)
+        return false;
+    setCurrentIndex(i);
+    return true;
+}
+
 void FlexView::updatePolish()
 {
     QQuickFlickable::updatePolish();
@@ -753,5 +812,6 @@ FlexSection *FlexViewPrivate::sectionOf(int index) const
     auto it = std::lower_bound(sections.begin(), sections.end(), index, [](FlexSection *s, int i) { return i < s->viewStart; });
     if (it == sections.end())
         return nullptr;
+    Q_ASSERT(index >= (*it)->viewStart && index < (*it)->mapToView((*it)->count - 1));
     return *it;
 }

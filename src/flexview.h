@@ -53,6 +53,7 @@ public:
 
     int currentIndex() const;
     void setCurrentIndex(int index);
+    Q_INVOKABLE bool moveCurrentRow(int delta);
     QQuickItem *currentItem() const;
     QQuickItem *currentSection() const;
 
