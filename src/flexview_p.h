@@ -38,6 +38,7 @@ public:
     int currentIndex = -1;
     QQuickItem *currentItem = nullptr;
     QPointer<FlexSection> currentSection;
+    qreal moveRowTargetX = -1;
 
     FlexViewPrivate(FlexView *q);
     virtual ~FlexViewPrivate();

@@ -255,6 +255,7 @@ void FlexView::setCurrentIndex(int index)
     d->currentIndex = index;
     d->currentItem = nullptr;
     d->currentSection = nullptr;
+    d->moveRowTargetX = -1;
 
     if (index >= 0) {
         d->currentItem = d->createItem(index);
@@ -289,7 +290,7 @@ bool FlexView::moveCurrentRow(int delta)
     FlexSection *section = d->currentSection;
     int sectionIndex = -1;
     int row = -1;
-    qreal xTarget = 0;
+    qreal xTarget = d->moveRowTargetX;
 
     if (section) {
         sectionIndex = d->sections.indexOf(section);
@@ -298,7 +299,8 @@ bool FlexView::moveCurrentRow(int delta)
         Q_ASSERT(i >= 0);
         row = section->rowForIndex(i);
         Q_ASSERT(row >= 0);
-        xTarget = section->geometryOf(i).center().x();
+        if (xTarget < 0)
+            xTarget = section->geometryOf(i).center().x();
     } else if (delta > 0 && !d->sections.isEmpty()) {
         sectionIndex = 0;
         section = d->sections[0];
@@ -335,6 +337,7 @@ bool FlexView::moveCurrentRow(int delta)
     if (i < 0 || i == d->currentIndex)
         return false;
     setCurrentIndex(i);
+    d->moveRowTargetX = xTarget;
     return true;
 }
 
