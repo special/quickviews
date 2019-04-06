@@ -511,11 +511,14 @@ FlexSectionItem *FlexSection::ensureItem()
         return nullptr;
     }
 
+    m_sectionItem = new FlexSectionItem(this);
+
     Q_ASSERT(qmlContext(view->q));
     QQmlContext *context = new QQmlContext(qmlContext(view->q), this);
+    context->setContextProperty("_flexsection", QVariant::fromValue(this));
 
     QVariantMap properties{{"name", value}};
-    context->setProperty("section", properties);
+    context->setContextProperty("section", properties);
 
     QObject *object = view->sectionDelegate->beginCreate(context);
     QQuickItem *item = qobject_cast<QQuickItem*>(object);
@@ -526,33 +529,41 @@ FlexSectionItem *FlexSection::ensureItem()
         return nullptr;
     }
     QQml_setParent_noEvent(item, this);
-    item->setProperty("_flexsection", QVariant::fromValue(this));
     item->setParentItem(view->q->contentItem());
+    m_sectionItem->setItem(item);
+
     view->sectionDelegate->completeCreate();
-
     QQuickItemPrivate::get(item)->addItemChangeListener(view, QQuickItemPrivate::Geometry);
-
-    m_sectionItem = new FlexSectionItem(this, item);
     return m_sectionItem;
 }
 
 FlexSectionItem *FlexSection::qmlAttachedProperties(QObject *obj)
 {
-    FlexSection *section = obj->property("_flexsection").value<FlexSection*>();
-    if (!section)
-        return nullptr;
-    return section->m_sectionItem;
+    QQmlContext *ctx = qmlContext(obj);
+    FlexSection *section;
+    if (ctx && (section = ctx->contextProperty("_flexsection").value<FlexSection*>()))
+        return section->m_sectionItem;
+    return nullptr;
 }
 
-FlexSectionItem::FlexSectionItem(FlexSection *section, QQuickItem *item)
-    : QObject(item)
-    , m_section(section)
-    , m_item(item)
+FlexSectionItem::FlexSectionItem(FlexSection *section)
+    : m_section(section)
 {
 }
 
 FlexSectionItem::~FlexSectionItem()
 {
+}
+
+void FlexSectionItem::setItem(QQuickItem *item)
+{
+    if (m_item == item)
+        return;
+    m_item = item;
+    if (m_contentItem && !m_contentItem->parent()) {
+        m_contentItem->setParent(item);
+        m_contentItem->setParentItem(item);
+    }
 }
 
 QQuickItem *FlexSectionItem::contentItem()
@@ -592,7 +603,11 @@ QQuickItem *FlexSectionItem::currentItem() const
 
 void FlexSectionItem::destroy()
 {
-    // m_item owns this object and m_contentItem, and it must destroy first
-    m_item->setVisible(false);
-    m_item->deleteLater();
+    if (m_item) {
+        // m_item owns this object and m_contentItem, and it must destroy first
+        m_item->setVisible(false);
+        m_item->deleteLater();
+    } else {
+        deleteLater();
+    }
 }

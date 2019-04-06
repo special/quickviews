@@ -103,7 +103,7 @@ class FlexSectionItem : public QObject
     Q_PROPERTY(QQuickItem* currentItem READ currentItem NOTIFY currentItemChanged)
 
 public:
-    FlexSectionItem(FlexSection *section, QQuickItem *item);
+    FlexSectionItem(FlexSection *section);
     virtual ~FlexSectionItem();
 
     QString name() const { return m_section->value; }
@@ -117,6 +117,7 @@ public:
 
     // Non-QML API
     QQuickItem *item() const { return m_item; }
+    void setItem(QQuickItem *item);
     void destroy();
 
 signals:
@@ -126,7 +127,7 @@ signals:
     void currentItemChanged();
 
 private:
-    FlexSection *m_section;
-    QQuickItem *m_item;
+    const FlexSection *m_section;
+    QQuickItem *m_item = nullptr;
     QQuickItem *m_contentItem = nullptr;
 };
