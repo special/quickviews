@@ -40,6 +40,10 @@ public:
     QPointer<FlexSection> currentSection;
     qreal moveRowTargetX = -1;
 
+    qreal vSpacing = 0;
+    qreal hSpacing = 0;
+    qreal sectionSpacing = 0;
+
     FlexViewPrivate(FlexView *q);
     virtual ~FlexViewPrivate();
 

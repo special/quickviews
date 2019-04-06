@@ -222,6 +222,51 @@ void FlexView::setCacheBuffer(qreal cacheBuffer)
     polish();
 }
 
+qreal FlexView::verticalSpacing() const
+{
+    return d->vSpacing;
+}
+
+void FlexView::setVerticalSpacing(qreal spacing)
+{
+    if (d->vSpacing == spacing)
+        return;
+
+    d->vSpacing = spacing;
+    polish();
+    emit verticalSpacingChanged();
+}
+
+qreal FlexView::horizontalSpacing() const
+{
+    return d->hSpacing;
+}
+
+void FlexView::setHorizontalSpacing(qreal spacing)
+{
+    if (d->hSpacing == spacing)
+        return;
+
+    d->hSpacing = spacing;
+    polish();
+    emit horizontalSpacingChanged();
+}
+
+qreal FlexView::sectionSpacing() const
+{
+    return d->sectionSpacing;
+}
+
+void FlexView::setSectionSpacing(qreal spacing)
+{
+    if (d->sectionSpacing == spacing)
+        return;
+
+    d->sectionSpacing = spacing;
+    polish();
+    emit sectionSpacingChanged();
+}
+
 int FlexView::currentIndex() const
 {
     return d->currentIndex;
@@ -451,6 +496,9 @@ void FlexViewPrivate::layout()
     qreal x = 0, y = 0;
     int lastIndex = -1;
     for (int s = 0; ; s++) {
+        if (s > 0)
+            y += sectionSpacing;
+
         if (s >= sections.size()) {
             if ((y > cacheArea.bottom() && lastIndex >= currentIndex) || !refill())
                 break;
@@ -458,6 +506,7 @@ void FlexViewPrivate::layout()
 
         FlexSection *section = sections[s];
         section->setViewportWidth(viewportWidth);
+        section->setSpacing(hSpacing, vSpacing);
         section->setIdealHeight(minHeight, idealHeight, maxHeight);
         section->layout();
 

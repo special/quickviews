@@ -101,6 +101,16 @@ bool FlexSection::setViewportWidth(qreal width)
     return true;
 }
 
+bool FlexSection::setSpacing(qreal horizontal, qreal vertical)
+{
+    if (hSpacing == horizontal && vSpacing == vertical)
+        return false;
+    vSpacing = vertical;
+    hSpacing = horizontal;
+    dirty |= DirtyFlag::Geometry;
+    return true;
+}
+
 bool FlexSection::setIdealHeight(qreal min, qreal ideal, qreal max)
 {
     if (min == minHeight && ideal == idealHeight && max == maxHeight)
@@ -197,7 +207,7 @@ bool FlexSection::layout()
         for (int p = 0; p < openRows.size(); p++) {
             FlexRow &candidate = openRows[p];
             candidate.ratio += ratio;
-            candidate.height = viewportWidth / candidate.ratio;
+            candidate.height = (viewportWidth - (hSpacing * (i - candidate.start))) / candidate.ratio;
 
             if (candidate.height > maxHeight && i+1 < count)
                 continue;
@@ -265,6 +275,7 @@ bool FlexSection::layout()
     }
     Q_ASSERT(!layoutRows.isEmpty());
     Q_ASSERT(layoutRows[0].start == 0);
+    m_contentHeight += vSpacing * (layoutRows.size() - 1);
 
     if (lcFlexLayout().isDebugEnabled()) {
         qCDebug(lcFlexLayout) << ".. selected rows:";
@@ -319,7 +330,7 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
             break;
         if (currentIndex >= row->start && currentIndex <= row->end)
             layoutRow(*row, y, false);
-        y += row->height;
+        y += row->height + vSpacing;
     }
 
     if (row == layoutRows.constEnd()) {
@@ -335,7 +346,7 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
             break;
 
         layoutRow(*row, y);
-        y += row->height;
+        y += row->height + vSpacing;
     }
 
     // Release the remaining delegates before continuing to layout the current row
@@ -348,7 +359,7 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
             layoutRow(*row, y, false);
             break;
         }
-        y += row->height;
+        y += row->height + vSpacing;
     }
 }
 
@@ -357,6 +368,9 @@ void FlexSection::layoutRow(const FlexRow &row, qreal y, bool create)
     qreal x = 0;
 
     for (int i = row.start; i <= row.end; i++) {
+        if (i > row.start)
+            x += hSpacing;
+
         int viewIndex = mapToView(i);
         // XXX It's probably worth caching these.
         double ratio = view->indexFlexRatio(viewIndex);
@@ -397,6 +411,9 @@ int FlexSection::rowAt(qreal target) const
         y += layoutRows[i].height;
         if (y > target)
             return i;
+        y += vSpacing;
+        if (y > target)
+            return -1;
     }
     return -1;
 }
@@ -409,6 +426,9 @@ int FlexSection::rowIndexAt(int rowIndex, qreal target, bool nearest) const
     qreal dist = -1;
     const FlexRow &row = layoutRows[rowIndex];
     for (int i = row.start; i <= row.end; i++) {
+        if (i > row.start)
+            x += hSpacing;
+
         int viewIndex = mapToView(i);
         double ratio = view->indexFlexRatio(viewIndex);
         if (!ratio)
@@ -453,10 +473,13 @@ QRectF FlexSection::geometryOf(int index) const
 
     QRectF geom;
     for (int i = 0; i < rowIndex; i++)
-        geom.setY(geom.y() + layoutRows[i].height);
+        geom.setY(geom.y() + layoutRows[i].height + vSpacing);
     geom.setHeight(row.height);
 
     for (int i = row.start; i <= index; i++) {
+        if (i > row.start)
+            geom.setX(geom.x() + hSpacing);
+
         // XXX This needs to be cached and not copied everywhere
         int viewIndex = mapToView(i);
         double ratio = view->indexFlexRatio(viewIndex);

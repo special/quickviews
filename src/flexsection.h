@@ -45,6 +45,7 @@ public:
     }
 
     bool setViewportWidth(qreal width);
+    bool setSpacing(qreal horizontal, qreal vertical);
     bool setIdealHeight(qreal min, qreal ideal, qreal max);
 
     void insert(int i, int count);
@@ -81,6 +82,8 @@ private:
     qreal minHeight = 0;
     qreal idealHeight = 0;
     qreal maxHeight = 0;
+    qreal hSpacing = 0;
+    qreal vSpacing = 0;
     qreal m_contentHeight = 0;
     qreal m_lastSectionHeight = 0;
     int m_lastSectionCount = 0;

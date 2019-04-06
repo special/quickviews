@@ -21,6 +21,9 @@ class FlexView : public QQuickFlickable
     Q_PROPERTY(int currentIndex READ currentIndex WRITE setCurrentIndex NOTIFY currentIndexChanged)
     Q_PROPERTY(QQuickItem* currentItem READ currentItem NOTIFY currentItemChanged)
     Q_PROPERTY(QQuickItem* currentSection READ currentSection NOTIFY currentSectionChanged)
+    Q_PROPERTY(qreal verticalSpacing READ verticalSpacing WRITE setVerticalSpacing NOTIFY verticalSpacingChanged)
+    Q_PROPERTY(qreal horizontalSpacing READ horizontalSpacing WRITE setHorizontalSpacing NOTIFY horizontalSpacingChanged)
+    Q_PROPERTY(qreal sectionSpacing READ sectionSpacing WRITE setSectionSpacing NOTIFY sectionSpacingChanged)
 
 public:
     FlexView(QQuickItem *parent = nullptr);
@@ -57,6 +60,13 @@ public:
     QQuickItem *currentItem() const;
     QQuickItem *currentSection() const;
 
+    qreal verticalSpacing() const;
+    void setVerticalSpacing(qreal spacing);
+    qreal horizontalSpacing() const;
+    void setHorizontalSpacing(qreal spacing);
+    qreal sectionSpacing() const;
+    void setSectionSpacing(qreal spacing);
+
 signals:
     void modelChanged();
     void delegateChanged();
@@ -70,6 +80,9 @@ signals:
     void currentIndexChanged();
     void currentItemChanged();
     void currentSectionChanged();
+    void verticalSpacingChanged();
+    void horizontalSpacingChanged();
+    void sectionSpacingChanged();
 
 protected:
     virtual void componentComplete() override;
