@@ -318,6 +318,7 @@ bool FlexView::moveCurrentRow(int delta)
             }
             row -= section->rowCount();
             sectionIndex++;
+            section = d->sections[sectionIndex];
         } else if (row < 0) {
             if (sectionIndex < 1) {
                 row = 0;
