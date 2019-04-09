@@ -1,6 +1,7 @@
 #pragma once
 
 #include "flexview.h"
+#include "delegatemanager.h"
 #include <QPointer>
 #include <QLoggingCategory>
 #include <QtQml/private/qqmlchangeset_p.h>
@@ -21,7 +22,7 @@ public:
     int moveId = 0;
 
     QQmlGuard<QQmlComponent> delegate;
-    bool delegateValidated = false;
+    DelegateManager items;
 
     QQmlGuard<QQmlComponent> sectionDelegate;
     QList<FlexSection*> sections;
@@ -56,8 +57,6 @@ public:
 
     int count() const;
 
-    QQuickItem *createItem(int index);
-
     QString sectionValue(int index);
     qreal indexFlexRatio(int index);
 
@@ -76,4 +75,3 @@ public slots:
 
 Q_DECLARE_LOGGING_CATEGORY(lcView)
 Q_DECLARE_LOGGING_CATEGORY(lcLayout)
-Q_DECLARE_LOGGING_CATEGORY(lcDelegate)

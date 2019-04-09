@@ -77,7 +77,6 @@ public:
 private:
     FlexSectionItem *m_sectionItem = nullptr;
     QVector<FlexRow> layoutRows;
-    QMap<int, QQuickItem*> delegates;
     qreal viewportWidth = 0;
     qreal minHeight = 0;
     qreal idealHeight = 0;

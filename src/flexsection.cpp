@@ -65,13 +65,6 @@ void FlexSection::insert(int i, int c)
     Q_ASSERT(i >= 0 && i <= count);
     count += c;
     dirty |= DirtyFlag::Indices;
-
-    QMap<int, QQuickItem*> adjusted;
-    for (auto it = delegates.lowerBound(i); it != delegates.end(); ) {
-        adjusted.insert(it.key()+c, it.value());
-        it = delegates.erase(it);
-    }
-    delegates.unite(adjusted);
 }
 
 void FlexSection::remove(int i, int c)
@@ -81,19 +74,6 @@ void FlexSection::remove(int i, int c)
     Q_ASSERT(i+c <= count);
     count -= c;
     dirty |= DirtyFlag::Indices;
-
-    QMap<int, QQuickItem*> adjusted;
-    for (auto it = delegates.lowerBound(i); it != delegates.end(); ) {
-        int k = it.key()-c;
-        if (k - i < 0) {
-            (*it)->setVisible(false);
-            view->model->release(*it);
-        } else {
-            adjusted.insert(k, *it);
-        }
-        it = delegates.erase(it);
-    }
-    delegates.unite(adjusted);
 }
 
 void FlexSection::change(int i, int c)
@@ -374,6 +354,7 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
 void FlexSection::layoutRow(const FlexRow &row, qreal y, bool create)
 {
     qreal x = 0;
+    QQuickItem *contentItem = m_sectionItem->contentItem();
 
     for (int i = row.start; i <= row.end; i++) {
         if (i > row.start)
@@ -386,26 +367,20 @@ void FlexSection::layoutRow(const FlexRow &row, qreal y, bool create)
             ratio = 1;
         qreal width = ratio * row.height;
 
-        QQuickItem *item = delegates.value(i);
-        if (!item) {
-            if (create) {
-                item = view->createItem(viewIndex);
-                item->setVisible(true);
-                delegates.insert(i, item);
-            } else if (viewIndex == view->currentIndex) {
-                item = view->currentItem;
-            }
-
-            if (!item) {
-                x += width;
-                continue;
-            }
-
-            // XXX should not be reparenting, but note that currentItem
-            // may not have the correct parent yet
-            item->setParentItem(m_sectionItem->contentItem());
+        QQuickItem *item;
+        if (create) {
+            // XXX AsyncIfNested
+            item = view->items.createItem(viewIndex, view->delegate, contentItem, QQmlIncubator::Synchronous);
+        } else {
+            item = view->items.item(viewIndex);
         }
 
+        if (!item) {
+            x += width;
+            continue;
+        }
+
+        item->setParentItem(contentItem);
         item->setPosition(QPointF(x, y));
         item->setSize(QSizeF(width, row.height));
         x += width;
@@ -516,21 +491,7 @@ void FlexSection::releaseSectionDelegate()
 
 void FlexSection::releaseDelegates(int first, int last)
 {
-    int released = 0;
-    auto it = delegates.begin();
-    if (first > 0)
-        it = delegates.lowerBound(first);
-    while (it != delegates.end()) {
-        if (last >= 0 && it.key() > last)
-            break;
-        (*it)->setVisible(false);
-        view->model->release(*it);
-        it = delegates.erase(it);
-        released++;
-    }
-
-    if (released)
-        qCDebug(lcDelegate) << "released" << released << "delegates between" << first << "and" << last;
+    view->items.release(mapToView(first), mapToView(last));
 }
 
 FlexSectionItem *FlexSection::ensureItem()
@@ -601,6 +562,7 @@ QQuickItem *FlexSectionItem::contentItem()
 {
     if (!m_contentItem) {
         m_contentItem = new QQuickItem(m_item);
+        QQmlEngine::setContextForObject(m_contentItem, qmlContext(m_item));
     }
 
     return m_contentItem;

@@ -5,7 +5,6 @@
 
 Q_LOGGING_CATEGORY(lcView, "crimson.flexview")
 Q_LOGGING_CATEGORY(lcLayout, "crimson.flexview.layout")
-Q_LOGGING_CATEGORY(lcDelegate, "crimson.flexview.delegate")
 
 FlexView::FlexView(QQuickItem *parent)
     : QQuickFlickable(parent)
@@ -47,6 +46,7 @@ void FlexView::setModel(QAbstractItemModel *model)
         connect(d->model, &QAbstractItemModel::layoutChanged, d, &FlexViewPrivate::layoutChanged);
         connect(d->model, &QAbstractItemModel::modelReset, d, &FlexViewPrivate::modelReset);
     }
+    d->items.setModel(model);
 
     polish();
     qCDebug(lcView) << "setModel" << d->model;
@@ -65,10 +65,9 @@ void FlexView::setDelegate(QQmlComponent *delegate)
 
     // XXX probably not a correct/sufficient reaction
     d->delegate = delegate;
-    d->delegateValidated = false;
     d->clear();
 
-    qCDebug(lcDelegate) << "setDelegate" << delegate;
+    qCDebug(lcView) << "setDelegate" << delegate;
     emit delegateChanged();
 }
 
@@ -245,8 +244,8 @@ void FlexView::setCurrentIndex(int index)
 
     qCDebug(lcView) << "change currentIndex" << d->currentIndex << "to" << index;
 
-    if (d->currentItem && d->model)
-        d->model->release(d->currentItem);
+    if (d->currentItem)
+        d->items.hold(-1);
     QPointer<FlexSection> oldSection(d->currentSection);
 
     d->currentIndex = index;
@@ -255,12 +254,14 @@ void FlexView::setCurrentIndex(int index)
     d->moveRowTargetX = -1;
 
     if (index >= 0) {
-        d->currentItem = d->createItem(index);
         // layout will ensure that the section and section item exist
         d->layout();
         d->currentItem->setFocus(true);
         d->currentSection = d->sectionOf(index);
         Q_ASSERT(d->currentSection);
+
+        d->currentItem = d->items.createItem(index, d->delegate, d->currentSection->ensureItem()->contentItem(), QQmlIncubator::AsynchronousIfNested);
+        d->items.hold(index);
     }
 
     if (oldSection && d->currentSection != oldSection)
@@ -385,6 +386,7 @@ void FlexViewPrivate::clear()
     pendingChanges.clear();
     sectionRoleIdx = -1;
     sizeRoleIdx = -1;
+    items.clear();
     for (FlexSection *section : sections)
         delete section;
     sections.clear();
@@ -432,32 +434,6 @@ void FlexViewPrivate::modelReset()
     clear();
     q->polish();
 }
-
-/*
-void FlexViewPrivate::initItem(int index, QObject *object)
-{
-    QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
-    if (item) {
-        item->setParentItem(q->contentItem());
-        item->setVisible(false);
-        qCDebug(lcDelegate) << "init index" << index << item;
-    }
-}
-
-void FlexViewPrivate::createdItem(int index, QObject *object)
-{
-    QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
-    qCDebug(lcDelegate) << "created index" << index << item;
-}
-
-void FlexViewPrivate::destroyingItem(QObject *object)
-{
-    QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
-    if (item) {
-        qCDebug(lcDelegate) << "destroying" << item;
-        item->setParentItem(nullptr);
-    }
-}*/
 
 void FlexViewPrivate::layout()
 {
@@ -553,6 +529,11 @@ bool FlexViewPrivate::applyPendingChanges()
         int first = remove.start();
         int count = remove.count;
 
+        if (currentIndex >= first && currentIndex < first + count)
+            items.hold(-1);
+        items.release(first, first + count - 1);
+        items.adjustIndex(first, -count);
+
         for (FlexSection *section : sections) {
             if (!count) {
                 section->viewStart -= remove.count;
@@ -582,6 +563,8 @@ bool FlexViewPrivate::applyPendingChanges()
     for (const auto &insert : pendingChanges.inserts()) {
         int index = insert.start();
         int count = insert.count;
+
+        items.adjustIndex(index, count);
 
         for (int s = 0; s < sections.size(); s++) {
             FlexSection *section = sections[s];
@@ -821,27 +804,5 @@ FlexSection *FlexViewPrivate::sectionOf(int index) const
         return nullptr;
     Q_ASSERT((*it)->mapToSection(index) >= 0);
     return *it;
-
-/*
-QQuickItem *FlexViewPrivate::createItem(int index)
-{
-    // XXX AsynchronousIfNested isn't being handled correctly below
-    QObject *object = model->object(index, QQmlIncubator::AsynchronousIfNested);
-    QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
-    if (!item) {
-        if (!delegateValidated) {
-            delegateValidated = true;
-            qmlWarning(q) << "Delegate must be an Item";
-        }
-
-        if (object)
-            model->release(object);
-        return nullptr;
-    }
-
-    qCDebug(lcDelegate) << "created index" << index << item;
-    delegateValidated = true;
-    return item;
-}*/
-
+}
 
