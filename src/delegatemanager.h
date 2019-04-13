@@ -4,6 +4,7 @@
 #include <QQuickItem>
 #include <QMap>
 #include <QQmlIncubator>
+#include <QSharedPointer>
 #include <QLoggingCategory>
 
 class QAbstractItemModel;
@@ -34,10 +35,10 @@ private:
     QMap<int, QQuickItem*> m_items;
     QAbstractItemModel *m_model = nullptr;
     QHash<int, int> m_rolePropertyMap;
-    QMetaObject *m_dataMetaObject = nullptr;
+    QSharedPointer<QMetaObject> m_dataMetaObject = nullptr;
     int m_hold = -1;
 
-    QMetaObject *dataMetaObject();
+    bool createMetaObject();
 };
 
 Q_DECLARE_LOGGING_CATEGORY(lcDelegate)

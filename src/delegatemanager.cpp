@@ -10,7 +10,7 @@ Q_LOGGING_CATEGORY(lcDelegate, "crimson.flexview.delegate")
 class DelegateContextObject : public QObject
 {
 public:
-    DelegateContextObject(DelegateManager *mgr, QMetaObject *mo, int index)
+    DelegateContextObject(DelegateManager *mgr, QSharedPointer<QMetaObject> mo, int index)
         : m_metaObject(mo)
         , m_mgr(mgr)
         , m_index(index)
@@ -19,7 +19,7 @@ public:
 
     virtual const QMetaObject *metaObject() const override
     {
-        return m_metaObject;
+        return m_metaObject.data();
     }
 
     virtual int qt_metacall(QMetaObject::Call c, int id, void **argv) override
@@ -33,12 +33,12 @@ public:
             int offsetId = m_metaObject->propertyOffset() + id;
             int role = m_mgr->m_rolePropertyMap.value(id, -1);
 
-            if (lcDelegate().isDebugEnabled()) {
-                QMetaProperty prop = m_metaObject->property(offsetId);
-                qCDebug(lcDelegate) << "context object for" << m_index << "read" << prop.name() << "for role" << role;
-            }
-
             if (role >= 0) {
+                if (lcDelegate().isDebugEnabled()) {
+                    QMetaProperty prop = m_metaObject->property(offsetId);
+                    qCDebug(lcDelegate) << "context object for" << m_index << "read" << prop.name() << "for role" << role;
+                }
+
                 QAbstractItemModel *model = m_mgr->m_model;
                 *reinterpret_cast<QVariant*>(argv[0]) = model->data(model->index(m_index, 0), role);
             } else if (id == 0) {
@@ -52,7 +52,7 @@ public:
     }
 
 private:
-    QMetaObject *m_metaObject;
+    QSharedPointer<QMetaObject> m_metaObject;
     DelegateManager *m_mgr;
     int m_index;
 };
@@ -73,7 +73,7 @@ void DelegateManager::setModel(QAbstractItemModel *model)
     m_model = model;
 }
 
-QMetaObject *DelegateManager::dataMetaObject()
+bool DelegateManager::createMetaObject()
 {
     if (!m_model || m_dataMetaObject)
         return m_dataMetaObject;
@@ -94,8 +94,8 @@ QMetaObject *DelegateManager::dataMetaObject()
         m_rolePropertyMap.insert(prop.index(), it.key());
     }
 
-    m_dataMetaObject = b.toMetaObject();
-    return m_dataMetaObject;
+    m_dataMetaObject.reset(b.toMetaObject(), &::free);
+    return true;
 }
 
 QQuickItem *DelegateManager::item(int index) const
@@ -112,8 +112,13 @@ QQuickItem *DelegateManager::createItem(int index, QQmlComponent *component, QQu
     // XXX Incubation
 
     // XXX If a delegate moves between sections, this context isn't "correct", for whatever that means
+    if (!createMetaObject()) {
+        qCWarning(lcDelegate) << "Cannot create meta object for model";
+        return nullptr;
+    }
+
     QQmlContext *context = new QQmlContext(qmlContext(parent));
-    DelegateContextObject *ctxObject = new DelegateContextObject(this, dataMetaObject(), index);
+    DelegateContextObject *ctxObject = new DelegateContextObject(this, m_dataMetaObject, index);
     context->setContextObject(ctxObject);
     context->setContextProperty("model", ctxObject);
 
@@ -198,9 +203,5 @@ void DelegateManager::clear()
     m_items.clear();
     m_hold = -1;
     m_rolePropertyMap.clear();
-    // XXX UNSAFE! This can't happen until after all of the deleteLater() calls above have finished...
-    if (m_dataMetaObject) {
-        free(m_dataMetaObject);
-        m_dataMetaObject = nullptr;
-    }
+    m_dataMetaObject.reset();
 }
