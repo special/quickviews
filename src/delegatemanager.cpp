@@ -35,13 +35,14 @@ public:
 
             if (lcDelegate().isDebugEnabled()) {
                 QMetaProperty prop = m_metaObject->property(offsetId);
-                qCDebug(lcDelegate) << "context object for" << m_index << "read" << id << count << offsetId << prop.name() << "role" << role;
+                qCDebug(lcDelegate) << "context object for" << m_index << "read" << prop.name() << "for role" << role;
             }
 
             if (role >= 0) {
                 QAbstractItemModel *model = m_mgr->m_model;
-                QVariant value = model->data(model->index(m_index, 0), role);
-                argv[0] = QMetaType::construct(QMetaType::QVariant, argv[0], reinterpret_cast<const void*>(&value));
+                *reinterpret_cast<QVariant*>(argv[0]) = model->data(model->index(m_index, 0), role);
+            } else if (id == 0) {
+                *reinterpret_cast<int*>(argv[0]) = m_index;
             }
 
             id -= count;
@@ -80,22 +81,20 @@ QMetaObject *DelegateManager::dataMetaObject()
     Q_ASSERT(m_rolePropertyMap.isEmpty());
 
     QMetaObjectBuilder b;
+    {
+        auto prop = b.addProperty("index", "int");
+        prop.setWritable(false);
+        prop.setConstant(true);
+    }
+
     for (auto it = roles.constBegin(); it != roles.constEnd(); it++) {
         auto signal = b.addSignal(it.value() + "Changed()");
         auto prop = b.addProperty(it.value(), "QVariant", signal.index());
         prop.setWritable(false);
         m_rolePropertyMap.insert(prop.index(), it.key());
     }
+
     m_dataMetaObject = b.toMetaObject();
-
-    if (lcDelegate().isDebugEnabled()) {
-        QString props;
-        for (int i = m_dataMetaObject->propertyOffset(); i < m_dataMetaObject->propertyCount(); i++) {
-            props += m_dataMetaObject->property(i).name();
-            props += " ";
-        }
-    }
-
     return m_dataMetaObject;
 }
 
