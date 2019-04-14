@@ -33,7 +33,8 @@ public:
     {
         Q_ASSERT(viewStart >= 0);
         Q_ASSERT(i < count);
-        return viewStart+i;
+        Q_ASSERT(i >= 0);
+        return viewStart + i;
     }
 
     int mapToSection(int i) const

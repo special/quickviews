@@ -146,6 +146,8 @@ QQuickItem *DelegateManager::createItem(int index, QQmlComponent *component, QQu
 
 void DelegateManager::release(int first, int last)
 {
+    Q_ASSERT(first <= last);
+
     int released = 0;
     auto it = m_items.begin();
     if (first > 0)
@@ -157,6 +159,8 @@ void DelegateManager::release(int first, int last)
         if (it.key() == m_hold)
             continue;
 
+        qCDebug(lcDelegate) << "released delegate" << *it << "for index" << it.key();
+
         // XXX delay release by a tick; be careful of how model remove interacts with that
         (*it)->setVisible(false);
         (*it)->deleteLater();
@@ -165,8 +169,8 @@ void DelegateManager::release(int first, int last)
         released++;
     }
 
-    if (released)
-        qCDebug(lcDelegate) << "released" << released << "delegates between" << first << "and" << last;
+    qCDebug(lcDelegate) << "released" << released << "delegates between" << first << "and" << last;
+    qCDebug(lcDelegate) << "remaining delegates:" << m_items.keys();
 }
 
 // XXX release+adjust to remove needs to clear current item _first_

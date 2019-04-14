@@ -491,6 +491,10 @@ void FlexSection::releaseSectionDelegate()
 
 void FlexSection::releaseDelegates(int first, int last)
 {
+    if (count < 1)
+        return;
+    if (last < 0)
+        last = count - 1;
     view->items.release(mapToView(first), mapToView(last));
 }
 
