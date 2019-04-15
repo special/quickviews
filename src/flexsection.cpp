@@ -207,7 +207,7 @@ bool FlexSection::layout()
         if (!ratio)
             ratio = 1;
 
-        int rowsAdded = 0;
+        FlexRow addingRow(0);
         Q_ASSERT(!openRows.isEmpty());
         for (int p = 0; p < openRows.size(); p++) {
             FlexRow &candidate = openRows[p];
@@ -225,42 +225,40 @@ bool FlexSection::layout()
                 continue;
             }
 
+            qreal cost = candidate.cost + badness(candidate);
             candidate.end = i;
-            FlexRow row = candidate;
-            row.cost += badness(row);
 
-            if (row.height > maxHeight) {
-                // Set last partial row to idealHeight, but keep original badness
-                row.height = idealHeight;
-            } else if (row.height < minHeight) {
-                // XXX if i > row.start, the candidate ending at i-1 was just as viable.
-                // There was no way to know that at the time, and adding it now is complex.
-                qCDebug(lcFlexLayout) << ".... row from" << row.start << "to" << i << "height" << row.height
-                    << "is below minimum" << minHeight << "but no other rows can start from" << row.start;
-                openRows.removeAt(p);
-                p--;
-            }
+            if (addingRow.end < 0 || cost < addingRow.cost) {
+                addingRow = candidate;
+                addingRow.cost = cost;
 
-            rows.append(row);
-            rowsAdded++;
-            qCDebug(lcFlexLayout) << ".. row:" << row.start << "to" << row.end << "height" << row.height
-                << "ratio" << row.ratio << "badness" << badness(row) << "cost" << row.cost;
-        }
-
-        if (rowsAdded && i+1 < count) {
-            // Row(s) ended at index i, so add a row starting at i+1 to openRows
-            FlexRow next(i+1);
-            for (int j = rows.size() - rowsAdded; j < rows.size(); j++) {
-                if (next.prevStart < 0 || rows[j].cost < next.cost) {
-                    next.cost = rows[j].cost;
-                    next.prevStart = rows[j].start;
+                if (addingRow.height > maxHeight) {
+                    // Set last partial row to idealHeight, but keep original badness
+                    addingRow.height = idealHeight;
+                } else if (addingRow.height < minHeight) {
+                    // XXX if i > row.start, the candidate ending at i-1 was just as viable.
+                    // There was no way to know that at the time, and adding it now is complex.
+                    // XXX revisit how complex that actually is... can candidate be changed back?
+                    openRows.removeAt(p);
+                    p--;
                 }
             }
+        }
 
-            nStartPositions++;
+        if (addingRow.end >= 0) {
+            qCDebug(lcFlexLayout) << ".. row:" << addingRow.start << "to" << addingRow.end << "height" << addingRow.height
+                << "ratio" << addingRow.ratio << "badness" << badness(addingRow) << "cost" << addingRow.cost;
+            rows.append(addingRow);
+
+            if (addingRow.height < minHeight) {
+                qCDebug(lcFlexLayout) << ".... row of height" << addingRow.height << "is below minimum" << minHeight << "but no other rows could start from" << addingRow.start;
+            }
+
+            FlexRow next(i+1);
+            next.cost = addingRow.cost;
+            next.prevStart = addingRow.start;
             openRows.append(next);
-            qCDebug(lcFlexLayout) << ".... starting row at" << next.start << "reachable by" << rowsAdded
-                << "with cost" << next.cost << "for previous row" << next.prevStart << "to" << next.start-1;
+            nStartPositions++;
         }
     }
 
