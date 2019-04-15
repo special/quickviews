@@ -24,6 +24,11 @@ struct FlexRow
     }
 };
 
+// Q_DECLARE_TYPEINFO only necessary for Qt < 5.11
+Q_DECLARE_TYPEINFO(FlexRow, Q_PRIMITIVE_TYPE | Q_MOVABLE_TYPE | Q_RELOCATABLE_TYPE);
+Q_STATIC_ASSERT(!QTypeInfo<FlexRow>::isComplex);
+Q_STATIC_ASSERT(QTypeInfo<FlexRow>::isRelocatable);
+
 FlexSection::FlexSection(FlexViewPrivate *view, const QString &value)
     : QObject(view)
     , view(view)
