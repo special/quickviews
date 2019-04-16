@@ -7,19 +7,26 @@
 Q_LOGGING_CATEGORY(lcSection, "crimson.flexview.section")
 Q_LOGGING_CATEGORY(lcFlexLayout, "crimson.flexview.layout.flex", QtWarningMsg)
 
+#if 0
+#define DEBUG_LAYOUT() qCDebug(lcFlexLayout)
+#define DEBUGGING_LAYOUT
+#else
+#define DEBUG_LAYOUT() if (false) qCDebug(lcFlexLayout)
+#endif
+
 struct FlexRow
 {
     int start;
     int end; // inclusive
-    // Chosen previous row is between prevStart and start-1
-    int prevStart;
+    // XXX could make this double as a useful value (y?) after layout
+    int prev; // only meaningful _during_ layout
     qreal ratio;
     qreal height;
     qreal cost;
 
     FlexRow() = default;
     FlexRow(int start)
-        : start(start), end(-1), prevStart(-1), ratio(0), height(0), cost(0)
+        : start(start), end(-1), prev(-1), ratio(0), height(0), cost(0)
     {
     }
 };
@@ -196,11 +203,11 @@ bool FlexSection::layout()
     QElapsedTimer tm;
     tm.restart();
 
-    QVector<FlexRow> rows;
-    QVector<FlexRow> openRows{FlexRow(0)};
-    int nStartPositions = 0;
+    std::vector<FlexRow> rows;
+    std::vector<FlexRow> openRows{FlexRow(0)};
+    int nAdditions = 0;
 
-    qCDebug(lcFlexLayout) << "layout for section viewStart" << viewStart << "count" << count << "dirty" << dirty;
+    DEBUG_LAYOUT() << "layout for section viewStart" << viewStart << "count" << count << "dirty" << dirty;
 
     for (int i = 0; i < count; i++) {
         qreal ratio = view->indexFlexRatio(mapToView(i));
@@ -208,86 +215,84 @@ bool FlexSection::layout()
             ratio = 1;
 
         FlexRow addingRow(0);
-        Q_ASSERT(!openRows.isEmpty());
-        for (int p = 0; p < openRows.size(); p++) {
-            FlexRow &candidate = openRows[p];
+        Q_ASSERT(!openRows.empty());
+        for (auto it = openRows.begin(); it != openRows.end(); ) {
+            FlexRow &candidate = *it;
             candidate.ratio += ratio;
             candidate.height = (viewportWidth - (hSpacing * (i - candidate.start))) / candidate.ratio;
+            nAdditions++;
 
-            if (candidate.height > maxHeight && i+1 < count)
+            if (candidate.height > maxHeight && i+1 < count) {
+                it++;
                 continue;
-            if (candidate.height < minHeight && candidate.end >= 0) {
+            } else if (candidate.height < minHeight && candidate.end >= 0) {
                 // Below minimum height, and at least one candidate has been recorded with this start index
-                qCDebug(lcFlexLayout) << ".... no more rows start at" << candidate.start << "because adding"
+                DEBUG_LAYOUT() << ".... no more rows start at" << candidate.start << "because adding"
                     << i << "reduces height to" << candidate.height << "with minimum" << minHeight;
-                openRows.removeAt(p);
-                p--;
+                it = openRows.erase(it);
+                continue;
+            } else {
+                qreal cost = candidate.cost + badness(candidate);
+                candidate.end = i;
+
+                if (addingRow.end < 0 || cost < addingRow.cost) {
+                    addingRow = candidate;
+                    addingRow.cost = cost;
+
+                    if (addingRow.height > maxHeight) {
+                        // Set last partial row to idealHeight, but keep original badness
+                        addingRow.height = idealHeight;
+                    } else if (addingRow.height < minHeight) {
+                        // XXX if i > row.start, the candidate ending at i-1 was just as viable.
+                        // There was no way to know that at the time, and adding it now is complex.
+                        // XXX revisit how complex that actually is... can candidate be changed back?
+                        it = openRows.erase(it);
+                        continue;
+                    }
+                }
+
+                it++;
                 continue;
             }
 
-            qreal cost = candidate.cost + badness(candidate);
-            candidate.end = i;
-
-            if (addingRow.end < 0 || cost < addingRow.cost) {
-                addingRow = candidate;
-                addingRow.cost = cost;
-
-                if (addingRow.height > maxHeight) {
-                    // Set last partial row to idealHeight, but keep original badness
-                    addingRow.height = idealHeight;
-                } else if (addingRow.height < minHeight) {
-                    // XXX if i > row.start, the candidate ending at i-1 was just as viable.
-                    // There was no way to know that at the time, and adding it now is complex.
-                    // XXX revisit how complex that actually is... can candidate be changed back?
-                    openRows.removeAt(p);
-                    p--;
-                }
-            }
+            Q_UNREACHABLE();
         }
 
         if (addingRow.end >= 0) {
-            qCDebug(lcFlexLayout) << ".. row:" << addingRow.start << "to" << addingRow.end << "height" << addingRow.height
+            DEBUG_LAYOUT() << ".. row:" << addingRow.start << "to" << addingRow.end << "height" << addingRow.height
                 << "ratio" << addingRow.ratio << "badness" << badness(addingRow) << "cost" << addingRow.cost;
-            rows.append(addingRow);
+            rows.push_back(addingRow);
 
             if (addingRow.height < minHeight) {
-                qCDebug(lcFlexLayout) << ".... row of height" << addingRow.height << "is below minimum" << minHeight << "but no other rows could start from" << addingRow.start;
+                DEBUG_LAYOUT() << ".... row of height" << addingRow.height << "is below minimum" << minHeight << "but no other rows could start from" << addingRow.start;
             }
 
             FlexRow next(i+1);
             next.cost = addingRow.cost;
-            next.prevStart = addingRow.start;
-            openRows.append(next);
-            nStartPositions++;
+            next.prev = rows.size() - 1;
+            openRows.push_back(next);
         }
     }
 
-    for (int i = rows.size()-1; i >= 0; i--) {
-        const FlexRow &row = rows[i];
-        if (row.end == count-1) {
-            if (layoutRows.isEmpty())
-                layoutRows.append(row);
-            else if (row.cost < layoutRows[0].cost)
-                layoutRows[0] = row;
-            m_contentHeight = row.height;
-        } else if (row.start == layoutRows[0].prevStart && row.end == layoutRows[0].start-1) {
-            // XXX This isn't ideal; prepend is slow on vector
-            layoutRows.prepend(row);
-            m_contentHeight += row.height;
-        }
+    for (int i = rows.size() - 1; i >= 0; i = rows[i].prev) {
+        layoutRows.append(rows[i]);
+        m_contentHeight += rows[i].height;
     }
+    std::reverse(layoutRows.begin(), layoutRows.end());
     Q_ASSERT(!layoutRows.isEmpty());
     Q_ASSERT(layoutRows[0].start == 0);
     m_contentHeight += vSpacing * (layoutRows.size() - 1);
 
+#ifdef DEBUGGING_LAYOUT
     if (lcFlexLayout().isDebugEnabled()) {
         qCDebug(lcFlexLayout) << ".. selected rows:";
         for (const auto &row : layoutRows) {
             qCDebug(lcFlexLayout) << "...." << row.start << "to" << row.end << "cost" << row.cost << "height" << row.height;
         }
     }
+#endif
 
-    qCDebug(lcLayout) << "section:" << layoutRows.size() << "rows for" << count << "items starting" << viewStart << "in" << m_contentHeight << "px; considered" << rows.size() << "rows from" << nStartPositions << "positions in" << tm.elapsed() << "ms";
+    qCDebug(lcLayout) << "section:" << layoutRows.size() << "rows for" << count << "items starting" << viewStart << "in" << m_contentHeight << "px; built" << rows.size() << "rows from" << nAdditions << "additions in" << tm.elapsed() << "ms";
 
     if (dirty & DirtyFlag::Indices && m_sectionItem)
         emit m_sectionItem->countChanged();
