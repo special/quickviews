@@ -2,9 +2,6 @@
 #include "flexsection.h"
 #include <QtQml>
 #include <QQmlComponent>
-#include <QtQml/private/qqmldelegatemodel_p.h>
-
-#include <QRandomGenerator>
 
 Q_LOGGING_CATEGORY(lcView, "crimson.flexview")
 Q_LOGGING_CATEGORY(lcLayout, "crimson.flexview.layout")
@@ -23,98 +20,53 @@ FlexView::~FlexView()
 
 void FlexView::componentComplete()
 {
-    if (d->model && d->ownModel)
-        static_cast<QQmlDelegateModel*>(d->model.data())->componentComplete();
-    polish();
     QQuickFlickable::componentComplete();
+    polish();
 }
 
-QVariant FlexView::model() const
+QAbstractItemModel *FlexView::model() const
 {
-    return d->modelVariant;
+    return d->model;
 }
 
-void FlexView::setModel(const QVariant &m)
+void FlexView::setModel(QAbstractItemModel *model)
 {
-    // Primarily based on QQuickItemView::setModel
-    QVariant model = m;
-    if (model.userType() == qMetaTypeId<QJSValue>())
-        model = model.value<QJSValue>().toVariant();
-    if (d->modelVariant == model)
+    if (d->model == model)
         return;
 
-    if (d->model) {
-        disconnect(d->model, &QQmlInstanceModel::modelUpdated, d, &FlexViewPrivate::modelUpdated);
-        disconnect(d->model, &QQmlInstanceModel::initItem, d, &FlexViewPrivate::initItem);
-        disconnect(d->model, &QQmlInstanceModel::createdItem, d, &FlexViewPrivate::createdItem);
-        disconnect(d->model, &QQmlInstanceModel::destroyingItem, d, &FlexViewPrivate::destroyingItem);
-    }
-
-    QQmlInstanceModel *oldModel = d->model;
-
     d->clear();
-    d->model = nullptr;
-    d->modelVariant = model;
+    if (d->model)
+        disconnect(d->model, nullptr, d, nullptr);
 
-    QObject *object = qvariant_cast<QObject*>(model);
-    QQmlInstanceModel *vim = nullptr;
-    if (object && (vim = qobject_cast<QQmlInstanceModel *>(object))) {
-        if (d->ownModel) {
-            delete oldModel;
-            d->ownModel = false;
-        }
-        d->model = vim;
-    } else {
-        if (!d->ownModel) {
-            d->model = new QQmlDelegateModel(qmlContext(this), this);
-            d->ownModel = true;
-            if (isComponentComplete())
-                static_cast<QQmlDelegateModel *>(d->model.data())->componentComplete();
-        } else {
-            d->model = oldModel;
-        }
-        if (QQmlDelegateModel *dataModel = qobject_cast<QQmlDelegateModel*>(d->model))
-            dataModel->setModel(model);
-    }
-
+    d->model = model;
     if (d->model) {
-        connect(d->model, &QQmlInstanceModel::modelUpdated, d, &FlexViewPrivate::modelUpdated);
-        connect(d->model, &QQmlInstanceModel::initItem, d, &FlexViewPrivate::initItem);
-        connect(d->model, &QQmlInstanceModel::createdItem, d, &FlexViewPrivate::createdItem);
-        connect(d->model, &QQmlInstanceModel::destroyingItem, d, &FlexViewPrivate::destroyingItem);
+        connect(d->model, &QAbstractItemModel::rowsInserted, d, &FlexViewPrivate::rowsInserted);
+        connect(d->model, &QAbstractItemModel::rowsRemoved, d, &FlexViewPrivate::rowsRemoved);
+        connect(d->model, &QAbstractItemModel::dataChanged, d, &FlexViewPrivate::dataChanged);
+        connect(d->model, &QAbstractItemModel::rowsMoved, d, &FlexViewPrivate::rowsMoved);
+        connect(d->model, &QAbstractItemModel::layoutChanged, d, &FlexViewPrivate::layoutChanged);
+        connect(d->model, &QAbstractItemModel::modelReset, d, &FlexViewPrivate::modelReset);
     }
 
     polish();
-    qCDebug(lcView) << "setModel" << d->model << "count" << (d->model ? d->model->count() : 0);
+    qCDebug(lcView) << "setModel" << d->model;
     emit modelChanged();
 }
 
 QQmlComponent *FlexView::delegate() const
 {
-    if (d->model) {
-        QQmlDelegateModel *dataModel = qobject_cast<QQmlDelegateModel*>(d->model);
-        return dataModel ? dataModel->delegate() : nullptr;
-    }
-    return nullptr;
+    return d->delegate;
 }
 
 void FlexView::setDelegate(QQmlComponent *delegate)
 {
-    if (delegate == this->delegate())
+    if (delegate == d->delegate)
         return;
 
-    if (!d->ownModel) {
-        d->model = new QQmlDelegateModel(qmlContext(this));
-        d->ownModel = true;
-        if (isComponentComplete())
-            static_cast<QQmlDelegateModel*>(d->model.data())->componentComplete();
-    }
-
-    QQmlDelegateModel *dataModel = qobject_cast<QQmlDelegateModel*>(d->model);
-    if (dataModel) {
-        dataModel->setDelegate(delegate);
-        d->clear();
-    }
+    // XXX probably not a correct/sufficient reaction
+    d->delegate = delegate;
+    d->delegateValidated = false;
+    d->clear();
 
     qCDebug(lcDelegate) << "setDelegate" << delegate;
     emit delegateChanged();
@@ -425,35 +377,63 @@ FlexViewPrivate::~FlexViewPrivate()
 
 int FlexViewPrivate::count() const
 {
-    return model ? model->count() : 0;
+    return model ? model->rowCount() : 0;
 }
 
 void FlexViewPrivate::clear()
 {
     pendingChanges.clear();
-    modelSizeRole = -1;
-    delegateValidated = false;
+    sectionRoleIdx = -1;
+    sizeRoleIdx = -1;
     for (FlexSection *section : sections)
         delete section;
     sections.clear();
     q->setCurrentIndex(-1);
 }
 
-void FlexViewPrivate::modelUpdated(const QQmlChangeSet &changes, bool reset)
+void FlexViewPrivate::rowsInserted(const QModelIndex &parent, int first, int last)
 {
-    qCDebug(lcLayout) << "model updated" << changes << reset;
-    if (reset) {
-        pendingChanges.clear();
-        q->cancelFlick();
-        // ...
-        q->polish();
-        return;
-    }
-
-    pendingChanges.apply(changes);
+    Q_UNUSED(parent);
+    pendingChanges.insert(first, last-first+1);
     q->polish();
 }
 
+void FlexViewPrivate::rowsRemoved(const QModelIndex &parent, int first, int last)
+{
+    Q_UNUSED(parent);
+    pendingChanges.remove(first, last-first+1);
+    q->polish();
+}
+
+void FlexViewPrivate::rowsMoved(const QModelIndex &parent, int start, int end, const QModelIndex &destination, int row)
+{
+    Q_UNUSED(parent);
+    // XXX
+    qFatal("rowsMoved not implemented");
+}
+
+void FlexViewPrivate::dataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QVector<int> &roles)
+{
+    Q_UNUSED(roles);
+    int count = bottomRight.row() - topLeft.row() + 1;
+    pendingChanges.change(topLeft.row(), count);
+    q->polish();
+}
+
+void FlexViewPrivate::layoutChanged()
+{
+    // XXX
+    modelReset();
+}
+
+void FlexViewPrivate::modelReset()
+{
+    qCDebug(lcView) << "model reset";
+    clear();
+    q->polish();
+}
+
+/*
 void FlexViewPrivate::initItem(int index, QObject *object)
 {
     QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
@@ -477,7 +457,7 @@ void FlexViewPrivate::destroyingItem(QObject *object)
         qCDebug(lcDelegate) << "destroying" << item;
         item->setParentItem(nullptr);
     }
-}
+}*/
 
 void FlexViewPrivate::layout()
 {
@@ -545,7 +525,7 @@ void FlexViewPrivate::updateContentHeight(qreal layoutHeight)
     }
 
     int lastIndex = sections.last()->mapToView(sections.last()->count-1);
-    int remaining = model->count() - lastIndex - 1;
+    int remaining = count() - lastIndex - 1;
     qreal estimated = 0;
 
     if (layoutHeight > 0 && lastIndex > 0 && remaining > 0) {
@@ -738,7 +718,7 @@ bool FlexViewPrivate::applyPendingChanges()
 
 void FlexViewPrivate::validateSections()
 {
-    int modelCount = model->count();
+    int modelCount = count();
     FlexSection *prevSection = nullptr;
     for (int s = 0; s < sections.size(); s++) {
         FlexSection *section = sections[s];
@@ -764,7 +744,8 @@ bool FlexViewPrivate::refill()
     int lastIndex = section ? section->mapToView(section->count - 1) : -1;
 
     bool sectionAdded = false;
-    for (int i = lastIndex+1; i < model->count(); i++) {
+    int modelCount = count();
+    for (int i = lastIndex+1; i < modelCount; i++) {
         QString value = sectionValue(i);
         if (!section || value != section->value) {
             if (sectionAdded)
@@ -780,63 +761,36 @@ bool FlexViewPrivate::refill()
     return sectionAdded;
 }
 
-QQuickItem *FlexViewPrivate::createItem(int index)
+QString FlexViewPrivate::sectionValue(int index)
 {
-    // XXX AsynchronousIfNested isn't being handled correctly below
-    QObject *object = model->object(index, QQmlIncubator::AsynchronousIfNested);
-    QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
-    if (!item) {
-        if (!delegateValidated) {
-            delegateValidated = true;
-            qmlWarning(q) << "Delegate must be an Item";
-        }
+    if (!model || sectionRole.isEmpty() || sectionRoleIdx < -1)
+        return QString();
 
-        if (object)
-            model->release(object);
-        return nullptr;
+    if (sectionRoleIdx < 0) {
+        sectionRoleIdx = model->roleNames().key(sectionRole.toLatin1(), -2);
+        if (sectionRoleIdx < 0) {
+            qCWarning(lcView) << "Model does not contain role" << sectionRole << "for sections";
+            return QString();
+        }
     }
 
-    qCDebug(lcDelegate) << "created index" << index << item;
-    delegateValidated = true;
-    return item;
-}
-
-QString FlexViewPrivate::sectionValue(int index) const
-{
-    if (sectionRole.isEmpty())
-        return QString();
-    else
-        return model->stringValue(index, sectionRole);
+    return model->data(model->index(index, 0), sectionRoleIdx).toString();
 }
 
 qreal FlexViewPrivate::indexFlexRatio(int index)
 {
-    QQmlDelegateModel *delegateModel = qobject_cast<QQmlDelegateModel*>(model);
-    if (!model || sizeRole.isEmpty())
+    if (!model || sizeRole.isEmpty() || sizeRoleIdx < -1)
         return 1;
 
-    // delegate model only provides ::stringValue()...
-    QAbstractItemModel *aim = qobject_cast<QAbstractItemModel*>(delegateModel->model().value<QObject*>());
-    if (!aim) {
-        qCWarning(lcView) << "Only AbstractItemModel is supported for sizeRole";
-        return 1;
-    }
-
-    if (modelSizeRole < 0) {
-        auto roleNames = aim->roleNames();
-        for (auto it = roleNames.constBegin(); it != roleNames.constEnd(); it++) {
-            if (it.value() == sizeRole) {
-                modelSizeRole = it.key();
-                break;
-            }
-        }
-        if (modelSizeRole < 0) {
-            qCWarning(lcView) << "No role '" << sizeRole << "' found in model for sizeRole";
+    if (sizeRoleIdx < 0) {
+        sizeRoleIdx = model->roleNames().key(sizeRole.toLatin1(), -2);
+        if (sizeRoleIdx < 0) {
+            qCWarning(lcView) << "Model does not contain role" << sizeRole << "for sizes";
             return 1;
         }
     }
 
-    QVariant value = aim->data(delegateModel->modelIndex(index).value<QModelIndex>(), modelSizeRole);
+    QVariant value = model->data(model->index(index, 0), sizeRoleIdx);
     if (value.canConvert<QSizeF>()) {
         QSizeF sz = value.value<QSizeF>();
         if (!sz.isEmpty())
@@ -867,4 +821,27 @@ FlexSection *FlexViewPrivate::sectionOf(int index) const
         return nullptr;
     Q_ASSERT((*it)->mapToSection(index) >= 0);
     return *it;
-}
+
+/*
+QQuickItem *FlexViewPrivate::createItem(int index)
+{
+    // XXX AsynchronousIfNested isn't being handled correctly below
+    QObject *object = model->object(index, QQmlIncubator::AsynchronousIfNested);
+    QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
+    if (!item) {
+        if (!delegateValidated) {
+            delegateValidated = true;
+            qmlWarning(q) << "Delegate must be an Item";
+        }
+
+        if (object)
+            model->release(object);
+        return nullptr;
+    }
+
+    qCDebug(lcDelegate) << "created index" << index << item;
+    delegateValidated = true;
+    return item;
+}*/
+
+

@@ -1,15 +1,17 @@
 #pragma once
 
 #include <QtQuick/private/qquickflickable_p.h>
+#include <QAbstractItemModel>
 
 class FlexViewPrivate;
 class QQmlComponent;
+class QAbstractItemModel;
 
 class FlexView : public QQuickFlickable
 {
     Q_OBJECT
 
-    Q_PROPERTY(QVariant model READ model WRITE setModel NOTIFY modelChanged)
+    Q_PROPERTY(QAbstractItemModel* model READ model WRITE setModel NOTIFY modelChanged)
     Q_PROPERTY(QQmlComponent* delegate READ delegate WRITE setDelegate NOTIFY delegateChanged)
     Q_PROPERTY(QQmlComponent* section READ section WRITE setSection NOTIFY sectionChanged)
     Q_PROPERTY(QString sectionRole READ sectionRole WRITE setSectionRole NOTIFY sectionRoleChanged)
@@ -29,8 +31,8 @@ public:
     FlexView(QQuickItem *parent = nullptr);
     virtual ~FlexView();
 
-    QVariant model() const;
-    void setModel(const QVariant &model);
+    QAbstractItemModel *model() const;
+    void setModel(QAbstractItemModel *model);
 
     QQmlComponent *delegate() const;
     void setDelegate(QQmlComponent *delegate);

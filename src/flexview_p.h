@@ -3,7 +3,6 @@
 #include "flexview.h"
 #include <QPointer>
 #include <QLoggingCategory>
-#include <QtQml/private/qqmlobjectmodel_p.h>
 #include <QtQml/private/qqmlchangeset_p.h>
 #include <QtQml/private/qqmlguard_p.h>
 #include <QtQuick/private/qquickitemchangelistener_p.h>
@@ -17,18 +16,19 @@ class FlexViewPrivate : public QObject, public QQuickItemChangeListener
 public:
     FlexView * const q;
 
-    QVariant modelVariant;
-    QPointer<QQmlInstanceModel> model;
-    int modelSizeRole = -1;
-    bool ownModel = false;
-    bool delegateValidated = false;
-
+    QAbstractItemModel *model = nullptr;
     QQmlChangeSet pendingChanges;
+    int moveId = 0;
+
+    QQmlGuard<QQmlComponent> delegate;
+    bool delegateValidated = false;
 
     QQmlGuard<QQmlComponent> sectionDelegate;
     QList<FlexSection*> sections;
     QString sectionRole;
+    int sectionRoleIdx = -1;
     QString sizeRole;
+    int sizeRoleIdx = -1;
 
     qreal idealHeight = 0;
     qreal minHeight = 0;
@@ -58,7 +58,7 @@ public:
 
     QQuickItem *createItem(int index);
 
-    QString sectionValue(int index) const;
+    QString sectionValue(int index);
     qreal indexFlexRatio(int index);
 
     virtual void itemGeometryChanged(QQuickItem *item, QQuickGeometryChange change, const QRectF &oldGeometry) override;
@@ -66,10 +66,12 @@ public:
     FlexSection *sectionOf(int index) const;
 
 public slots:
-    void modelUpdated(const QQmlChangeSet &changes, bool reset);
-    void initItem(int index, QObject *object);
-    void createdItem(int index, QObject *object);
-    void destroyingItem(QObject *object);
+    void rowsInserted(const QModelIndex &parent, int first, int last);
+    void rowsRemoved(const QModelIndex &parent, int first, int last);
+    void rowsMoved(const QModelIndex &parent, int start, int end, const QModelIndex &destination, int row);
+    void dataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QVector<int> &roles);
+    void layoutChanged();
+    void modelReset();
 };
 
 Q_DECLARE_LOGGING_CATEGORY(lcView)
