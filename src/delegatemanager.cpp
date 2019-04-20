@@ -98,16 +98,18 @@ bool DelegateManager::createMetaObject()
     return true;
 }
 
-QQuickItem *DelegateManager::item(int index) const
+DelegateRef DelegateManager::item(int index) const
 {
-    return m_items.value(index);
+    return m_items.value(index).lock();
 }
 
-QQuickItem *DelegateManager::createItem(int index, QQmlComponent *component, QQuickItem *parent, QQmlIncubator::IncubationMode mode)
+DelegateRef DelegateManager::createItem(int index, QQmlComponent *component, QQuickItem *parent, QQmlIncubator::IncubationMode mode)
 {
     auto it = m_items.lowerBound(index);
-    if (it != m_items.end() && it.key() == index)
-        return *it;
+    if (it != m_items.end() && it.key() == index) {
+        if (auto ref = it->lock())
+            return ref;
+    }
 
     // XXX Incubation
 
@@ -140,59 +142,44 @@ QQuickItem *DelegateManager::createItem(int index, QQmlComponent *component, QQu
 
     qCDebug(lcDelegate) << "created delegate" << item << "for index" << index;
     component->completeCreate();
-    m_items.insert(it, index, item);
-    return item;
+
+    auto ref = std::shared_ptr<QQuickItem>(item, [this](auto item) { release(item); });
+    m_items.insert(it, index, ref);
+    return ref;
 }
 
-void DelegateManager::release(int first, int last)
+void DelegateManager::release(QQuickItem *item)
 {
-    Q_ASSERT(first <= last);
+    // Don't bother removing the item from m_items; the weak ref has the same
+    // result, and it's cheaper to not be modifying all the time (especially in
+    // this path). It's also a bit annoying to track back to an index from here.
+    // It will be cleaned up eventually.
 
-    int released = 0;
-    auto it = m_items.begin();
-    if (first > 0)
-        it = m_items.lowerBound(first);
-    while (it != m_items.end()) {
-        if (last >= 0 && it.key() > last)
-            break;
-
-        if (it.key() == m_hold)
-            continue;
-
-        qCDebug(lcDelegate) << "released delegate" << *it << "for index" << it.key();
-
-        // XXX delay release by a tick; be careful of how model remove interacts with that
-        (*it)->setVisible(false);
-        (*it)->deleteLater();
-
-        it = m_items.erase(it);
-        released++;
-    }
-
-    qCDebug(lcDelegate) << "released" << released << "delegates between" << first << "and" << last;
-    qCDebug(lcDelegate) << "remaining delegates:" << m_items.keys();
+    // XXX delay the actual deletion slightly to prevent any delegate bouncing
+    item->setVisible(false);
+    item->deleteLater();
 }
 
-// XXX release+adjust to remove needs to clear current item _first_
 void DelegateManager::adjustIndex(int from, int delta)
 {
-    if (m_hold >= from)
-        m_hold += delta;
-
     auto it = m_items.constEnd();
     if (m_items.isEmpty() || (it-1).key() < from)
         return;
 
     // QMap claims that inserting the largest item first is more efficient
-    QMap<int, QQuickItem*> adjusted;
+    QMap<int, std::weak_ptr<QQuickItem>> adjusted;
     do {
         it--;
-        auto key = it.key();
-        if (key >= from)
+        int key = it.key();
+        if (key >= from) {
+            if (delta < 0 && from - key < delta)
+                continue;
             key += delta;
+        }
+        if (it.value().expired())
+            continue;
         adjusted.insert(adjusted.constBegin(), key, it.value());
     } while (it != m_items.constBegin());
-    Q_ASSERT(m_items.size() == adjusted.size());
 
     m_items = adjusted;
 }
@@ -200,12 +187,7 @@ void DelegateManager::adjustIndex(int from, int delta)
 void DelegateManager::clear()
 {
     qCDebug(lcDelegate) << "clearing delegate manager and releasing" << m_items.size() << "delegates";
-    for (QQuickItem *item : m_items) {
-        item->setVisible(false);
-        item->deleteLater();
-    }
     m_items.clear();
-    m_hold = -1;
     m_rolePropertyMap.clear();
     m_dataMetaObject.reset();
 }

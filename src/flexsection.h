@@ -54,11 +54,11 @@ public:
     void change(int i, int count);
     void clear();
 
+    QQuickItem *currentItem();
     void setCurrentIndex(int index);
 
     bool layout();
     void layoutDelegates(const QRectF &visibleArea, const QRectF &cacheArea);
-    void releaseDelegates(int first = 0, int last = -1);
     void releaseSectionDelegate();
 
     qreal estimatedHeight() const;
@@ -78,6 +78,8 @@ public:
 private:
     FlexSectionItem *m_sectionItem = nullptr;
     QVector<FlexRow> layoutRows;
+    QMap<int, DelegateRef> m_delegates;
+    DelegateRef m_currentItem;
     qreal viewportWidth = 0;
     qreal minHeight = 0;
     qreal idealHeight = 0;
@@ -90,8 +92,12 @@ private:
     int currentIndex = -1;
     DirtyFlags dirty = DirtyFlag::All;
 
+    void adjustIndex(int from, int delta);
     qreal badness(const FlexRow &row) const;
     void layoutRow(const FlexRow &row, qreal y, bool create = true);
+
+    DelegateRef delegate(int index, bool create);
+    void releaseDelegates(int first = 0, int last = -1);
 };
 QML_DECLARE_TYPEINFO(FlexSection, QML_HAS_ATTACHED_PROPERTIES)
 
@@ -116,7 +122,7 @@ public:
     void setContentItem(QQuickItem *contentItem);
 
     bool isCurrentSection() const;
-    QQuickItem *currentItem() const;
+    QQuickItem *currentItem();
 
     // Non-QML API
     QQuickItem *item() const { return m_item; }
@@ -130,7 +136,7 @@ signals:
     void currentItemChanged();
 
 private:
-    const FlexSection *m_section;
+    FlexSection * const m_section;
     QQuickItem *m_item = nullptr;
     QQuickItem *m_contentItem = nullptr;
 };

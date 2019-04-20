@@ -50,6 +50,7 @@ FlexSection::~FlexSection()
 
 void FlexSection::clear()
 {
+    m_currentItem = nullptr;
     releaseSectionDelegate();
     m_contentHeight = 0;
     m_lastSectionHeight = 0;
@@ -63,6 +64,7 @@ void FlexSection::clear()
 void FlexSection::insert(int i, int c)
 {
     Q_ASSERT(i >= 0 && i <= count);
+    adjustIndex(i, c);
     count += c;
     dirty |= DirtyFlag::Indices;
 }
@@ -72,6 +74,7 @@ void FlexSection::remove(int i, int c)
     Q_ASSERT(i >= 0 && i < count);
     Q_ASSERT(c >= 0);
     Q_ASSERT(i+c <= count);
+    adjustIndex(i, -c);
     count -= c;
     dirty |= DirtyFlag::Indices;
 }
@@ -82,6 +85,35 @@ void FlexSection::change(int i, int c)
     Q_ASSERT(c >= 0);
     Q_ASSERT(i+c <= count);
     dirty |= DirtyFlag::Data;
+}
+
+void FlexSection::adjustIndex(int from, int delta)
+{
+    auto it = m_delegates.constEnd();
+    if (m_delegates.isEmpty() || (it-1).key() < from)
+        return;
+
+    if (currentIndex >= from) {
+        if (delta < 0 && from - currentIndex < delta)
+            setCurrentIndex(-1);
+        else
+            currentIndex += delta;
+    }
+
+    // QMap claims that inserting the largest item first is more efficient
+    QMap<int, DelegateRef> adjusted;
+    do {
+        it--;
+        int key = it.key();
+        if (key >= from) {
+            if (delta < 0 && from - key < delta)
+                continue;
+            key += delta;
+        }
+        adjusted.insert(adjusted.constBegin(), key, std::move(*it));
+    } while (it != m_delegates.constBegin());
+    Q_ASSERT(m_delegates.size() == adjusted.size());
+    m_delegates = adjusted;
 }
 
 bool FlexSection::setViewportWidth(qreal width)
@@ -121,16 +153,27 @@ void FlexSection::setCurrentIndex(int index)
     if (index == currentIndex || index >= count)
         return;
 
-    bool hadCurrentIndex = currentIndex >= 0;
+    int oldIndex = currentIndex;
     currentIndex = index;
-    if (currentIndex >= 0)
+    if (currentIndex >= 0) {
         ensureItem();
+        m_currentItem = delegate(index, true);
+    } else {
+        m_currentItem = nullptr;
+    }
+
+    qCDebug(lcSection) << "section current index changed" << oldIndex << "->" << currentIndex;
 
     if (m_sectionItem) {
-        if (hadCurrentIndex != (currentIndex >= 0))
+        if ((oldIndex >= 0) != (currentIndex >= 0))
             m_sectionItem->isCurrentSectionChanged();
         m_sectionItem->currentItemChanged();
     }
+}
+
+QQuickItem *FlexSection::currentItem()
+{
+    return m_currentItem.get();
 }
 
 // Return the actual section item height, if it exists.
@@ -310,8 +353,6 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
     m_lastSectionCount = count;
 
     qreal y = 0;
-    int currentIndex = mapToSection(view->currentIndex);
-
     auto row = layoutRows.constBegin();
     for (; row != layoutRows.constEnd(); row++) {
         if (y + row->height >= cacheArea.top())
@@ -342,8 +383,8 @@ void FlexSection::layoutDelegates(const QRectF &visibleArea, const QRectF &cache
     if (row != layoutRows.constEnd())
         releaseDelegates(row->start, -1);
 
-    for (; currentIndex >= 0 && row != layoutRows.constEnd() && row->end <= currentIndex; row++) {
-        if (currentIndex >= row->start) {
+    for (; currentIndex >= 0 && row != layoutRows.constEnd() && currentIndex >= row->start; row++) {
+        if (currentIndex <= row->end) {
             layoutRow(*row, y, false);
             break;
         }
@@ -367,14 +408,7 @@ void FlexSection::layoutRow(const FlexRow &row, qreal y, bool create)
             ratio = 1;
         qreal width = ratio * row.height;
 
-        QQuickItem *item;
-        if (create) {
-            // XXX AsyncIfNested
-            item = view->items.createItem(viewIndex, view->delegate, contentItem, QQmlIncubator::Synchronous);
-        } else {
-            item = view->items.item(viewIndex);
-        }
-
+        auto item = delegate(i, create);
         if (!item) {
             x += width;
             continue;
@@ -383,6 +417,8 @@ void FlexSection::layoutRow(const FlexRow &row, qreal y, bool create)
         item->setParentItem(contentItem);
         item->setPosition(QPointF(x, y));
         item->setSize(QSizeF(width, row.height));
+        if (i == currentIndex)
+            item->setFocus(true);
         x += width;
     }
 }
@@ -479,8 +515,28 @@ QRectF FlexSection::geometryOf(int index) const
     return geom;
 }
 
+DelegateRef FlexSection::delegate(int index, bool create)
+{
+    auto it = m_delegates.lowerBound(index);
+    if (it != m_delegates.end() && it.key() == index)
+        return *it;
+
+    DelegateRef ref;
+    if (!create) {
+        ref = view->items.item(mapToView(index));
+    } else {
+        // XXX AsyncIfNested, etc
+        ref = view->items.createItem(mapToView(index), view->delegate, m_sectionItem->contentItem(), QQmlIncubator::Synchronous);
+    }
+
+    if (ref)
+        m_delegates.insert(it, index, ref);
+    return ref;
+}
+
 void FlexSection::releaseSectionDelegate()
 {
+    Q_ASSERT(!currentItem());
     releaseDelegates();
     if (m_sectionItem) {
         qCDebug(lcDelegate) << "releasing section delegate" << m_sectionItem;
@@ -491,11 +547,32 @@ void FlexSection::releaseSectionDelegate()
 
 void FlexSection::releaseDelegates(int first, int last)
 {
-    if (count < 1)
-        return;
-    if (last < 0)
-        last = count - 1;
-    view->items.release(mapToView(first), mapToView(last));
+    Q_ASSERT(last < 0 || first <= last);
+
+    int released = 0;
+    auto it = m_delegates.begin();
+    if (first > 0)
+        it = m_delegates.lowerBound(first);
+
+    while (it != m_delegates.end()) {
+        if (last >= 0 && it.key() > last)
+            break;
+
+        // It's not strictly necessary to keep the current item in m_delegates, since a ref
+        // is held by m_currentItem, but it's not a bad idea.
+        if (it.key() == currentIndex) {
+            it++;
+            continue;
+        }
+
+        it = m_delegates.erase(it);
+        released++;
+    }
+
+    if (released) {
+        qCDebug(lcDelegate) << "released" << released << "delegates between" << first << "and" << last;
+        qCDebug(lcDelegate) << "remaining delegates:" << m_delegates.keys();
+    }
 }
 
 FlexSectionItem *FlexSection::ensureItem()
@@ -553,8 +630,7 @@ FlexSectionItem::~FlexSectionItem()
 
 void FlexSectionItem::setItem(QQuickItem *item)
 {
-    if (m_item == item)
-        return;
+    Q_ASSERT(!m_item);
     m_item = item;
     if (m_contentItem && !m_contentItem->parent()) {
         m_contentItem->setParent(item);
@@ -591,11 +667,9 @@ bool FlexSectionItem::isCurrentSection() const
     return m_section->view->currentSection == m_section;
 }
 
-QQuickItem *FlexSectionItem::currentItem() const
+QQuickItem *FlexSectionItem::currentItem()
 {
-    if (isCurrentSection())
-        return m_section->view->currentItem;
-    return nullptr;
+    return m_section->currentItem();
 }
 
 void FlexSectionItem::destroy()

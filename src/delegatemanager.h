@@ -6,8 +6,11 @@
 #include <QQmlIncubator>
 #include <QSharedPointer>
 #include <QLoggingCategory>
+#include <memory>
 
 class QAbstractItemModel;
+
+typedef std::shared_ptr<QQuickItem> DelegateRef;
 
 class DelegateManager : public QObject
 {
@@ -21,24 +24,22 @@ public:
 
     void setModel(QAbstractItemModel *model);
 
-    QQuickItem *item(int index) const;
-    QQuickItem *createItem(int index, QQmlComponent *component, QQuickItem *parent, QQmlIncubator::IncubationMode mode);
+    DelegateRef item(int index) const;
+    DelegateRef createItem(int index, QQmlComponent *component, QQuickItem *parent, QQmlIncubator::IncubationMode mode);
     void release(int index) { release(index, index); }
     void release(int first, int last);
     void clear();
 
     void adjustIndex(int from, int delta);
 
-    void hold(int index) { m_hold = index; }
-
 private:
-    QMap<int, QQuickItem*> m_items;
+    QMap<int, std::weak_ptr<QQuickItem>> m_items;
     QAbstractItemModel *m_model = nullptr;
     QHash<int, int> m_rolePropertyMap;
     QSharedPointer<QMetaObject> m_dataMetaObject = nullptr;
-    int m_hold = -1;
 
     bool createMetaObject();
+    void release(QQuickItem *item);
 };
 
 Q_DECLARE_LOGGING_CATEGORY(lcDelegate)

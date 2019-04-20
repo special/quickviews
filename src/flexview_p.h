@@ -37,7 +37,6 @@ public:
     qreal cacheBuffer = 0;
 
     int currentIndex = -1;
-    QQuickItem *currentItem = nullptr;
     QPointer<FlexSection> currentSection;
     qreal moveRowTargetX = -1;
 
