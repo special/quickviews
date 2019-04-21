@@ -17,6 +17,15 @@ public:
     {
     };
 
+    void setIndex(int index)
+    {
+        if (index == m_index)
+            return;
+
+        m_index = index;
+        QMetaObject::activate(this, m_metaObject.get(), 0, nullptr);
+    }
+
     virtual const QMetaObject *metaObject() const override
     {
         return m_metaObject.data();
@@ -82,9 +91,10 @@ bool DelegateManager::createMetaObject()
 
     QMetaObjectBuilder b;
     {
-        auto prop = b.addProperty("index", "int");
+        auto signal = b.addSignal("indexChanged()");
+        Q_ASSERT(signal.index() == 0);
+        auto prop = b.addProperty("index", "int", signal.index());
         prop.setWritable(false);
-        prop.setConstant(true);
     }
 
     for (auto it = roles.constBegin(); it != roles.constEnd(); it++) {
@@ -171,14 +181,26 @@ void DelegateManager::adjustIndex(int from, int delta)
     do {
         it--;
         int key = it.key();
-        if (key >= from) {
-            if (delta < 0 && from - key < delta)
-                continue;
-            key += delta;
-        }
-        if (it.value().expired())
+        if (key < from) {
+            adjusted.insert(adjusted.constBegin(), key, it.value());
             continue;
-        adjusted.insert(adjusted.constBegin(), key, it.value());
+        } else if (delta < 0 && from - key < delta)
+            continue;
+        key += delta;
+
+        auto item = it.value().lock();
+        if (!item)
+            continue;
+        auto ctx = qmlContext(item.get());
+        Q_ASSERT(ctx);
+        if (ctx) {
+            auto ctxObject = qobject_cast<DelegateContextObject*>(ctx->contextObject());
+            Q_ASSERT(ctxObject);
+            if (ctxObject)
+                ctxObject->setIndex(key);
+        }
+
+        adjusted.insert(adjusted.constBegin(), key, item);
     } while (it != m_items.constBegin());
 
     m_items = adjusted;
