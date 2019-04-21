@@ -21,6 +21,12 @@ void FlexView::componentComplete()
 {
     QQuickFlickable::componentComplete();
     polish();
+
+    if (d->currentIndex >= 0) {
+        int index = d->currentIndex;
+        d->currentIndex = -1;
+        setCurrentIndex(index);
+    }
 }
 
 QAbstractItemModel *FlexView::model() const
@@ -63,9 +69,9 @@ void FlexView::setDelegate(QQmlComponent *delegate)
     if (delegate == d->delegate)
         return;
 
-    // XXX probably not a correct/sufficient reaction
     d->delegate = delegate;
     d->clear();
+    polish();
 
     qCDebug(lcView) << "setDelegate" << delegate;
     emit delegateChanged();
@@ -83,6 +89,9 @@ void FlexView::setSection(QQmlComponent *delegate)
 
     d->sectionDelegate = delegate;
     d->clear();
+    polish();
+
+    qCDebug(lcView) << "setSection" << delegate;
     emit sectionChanged();
 }
 
@@ -98,6 +107,8 @@ void FlexView::setSectionRole(const QString &role)
     d->sectionRole = role;
     d->clear();
     polish();
+
+    qCDebug(lcView) << "setSectionRole" << role;
     emit sectionRoleChanged();
 }
 
@@ -113,6 +124,8 @@ void FlexView::setSizeRole(const QString &role)
     d->sizeRole = role;
     d->clear();
     polish();
+
+    qCDebug(lcView) << "setSizeRole" << role;
     emit sizeRoleChanged();
 }
 
@@ -225,18 +238,23 @@ int FlexView::currentIndex() const
 
 QQuickItem *FlexView::currentItem() const
 {
+    // currentItem can't (reliably) be returned before component is complete,
+    // because delegate/sectionDelegate/etc may not have been set yet.
     return d->currentSection ? d->currentSection->currentItem() : nullptr;
 }
 
 QQuickItem *FlexView::currentSection() const
 {
-    if (d->currentSection)
-        return d->currentSection->ensureItem()->item();
-    return nullptr;
+    return d->currentSection ? d->currentSection->ensureItem()->item() : nullptr;
 }
 
 void FlexView::setCurrentIndex(int index)
 {
+    if (!isComponentComplete()) {
+        d->currentIndex = index;
+        return;
+    }
+
     if (index >= 0)
         d->applyPendingChanges();
 
@@ -274,7 +292,7 @@ void FlexView::setCurrentIndex(int index)
 
 bool FlexView::moveCurrentRow(int delta)
 {
-    if (delta == 0)
+    if (delta == 0 || !isComponentComplete())
         return false;
 
     d->layout();
@@ -368,6 +386,7 @@ FlexViewPrivate::FlexViewPrivate(FlexView *q)
 
 FlexViewPrivate::~FlexViewPrivate()
 {
+    clear();
 }
 
 int FlexViewPrivate::count() const
@@ -375,16 +394,25 @@ int FlexViewPrivate::count() const
     return model ? model->rowCount() : 0;
 }
 
+// Clear all state, but not properties
 void FlexViewPrivate::clear()
 {
+    if (!q->isComponentComplete())
+        return;
+
+    qCDebug(lcView) << "view cleared";
     pendingChanges.clear();
-    sectionRoleIdx = -1;
-    sizeRoleIdx = -1;
+    moveId = -1;
     items.clear();
     for (FlexSection *section : sections)
         delete section;
     sections.clear();
-    q->setCurrentIndex(-1);
+    sectionRoleIdx = -1;
+    sizeRoleIdx = -1;
+    // currentIndex goes to a state as if it had been set when the section didn't exist
+    currentIndex = -1;
+    currentSection = nullptr;
+    moveRowTargetX = -1;
 }
 
 void FlexViewPrivate::rowsInserted(const QModelIndex &parent, int first, int last)
@@ -513,7 +541,7 @@ void FlexViewPrivate::updateContentHeight(qreal layoutHeight)
 
 bool FlexViewPrivate::applyPendingChanges()
 {
-    if (pendingChanges.isEmpty())
+    if (pendingChanges.isEmpty() || !q->isComponentComplete())
         return false;
 
     int oldCurrentIndex = currentIndex;
@@ -785,6 +813,7 @@ void FlexViewPrivate::itemGeometryChanged(QQuickItem *item, QQuickGeometryChange
     if (!change.heightChange())
         return;
 
+    qCDebug(lcLayout) << "section item geometry changed" << item;
     Q_UNUSED(item);
     q->polish();
 }
