@@ -37,9 +37,11 @@ private:
     QAbstractItemModel *m_model = nullptr;
     QHash<int, int> m_rolePropertyMap;
     QSharedPointer<QMetaObject> m_dataMetaObject = nullptr;
+    int m_recentlyReleased = 0;
 
     bool createMetaObject();
     void release(QQuickItem *item);
+    void cleanup();
 };
 
 Q_DECLARE_LOGGING_CATEGORY(lcDelegate)

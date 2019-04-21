@@ -115,6 +115,9 @@ DelegateRef DelegateManager::item(int index) const
 
 DelegateRef DelegateManager::createItem(int index, QQmlComponent *component, QQuickItem *parent, QQmlIncubator::IncubationMode mode)
 {
+    if (m_recentlyReleased > 100)
+        cleanup();
+
     auto it = m_items.lowerBound(index);
     if (it != m_items.end() && it.key() == index) {
         if (auto ref = it->lock())
@@ -164,10 +167,29 @@ void DelegateManager::release(QQuickItem *item)
     // result, and it's cheaper to not be modifying all the time (especially in
     // this path). It's also a bit annoying to track back to an index from here.
     // It will be cleaned up eventually.
+    m_recentlyReleased++;
 
     // XXX delay the actual deletion slightly to prevent any delegate bouncing
     item->setVisible(false);
     item->deleteLater();
+}
+
+void DelegateManager::cleanup()
+{
+    int removed = 0;
+    auto it = m_items.begin();
+    while (it != m_items.end()) {
+        if (it->expired()) {
+            it = m_items.erase(it);
+            removed++;
+        } else {
+            it++;
+        }
+    }
+    m_recentlyReleased = 0;
+
+    if (removed)
+        qCDebug(lcDelegate) << "cleaned up" << removed << "released delegates from map";
 }
 
 void DelegateManager::adjustIndex(int from, int delta)
