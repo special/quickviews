@@ -44,6 +44,8 @@ public:
     qreal hSpacing = 0;
     qreal sectionSpacing = 0;
 
+    bool inLayout = false;
+
     FlexViewPrivate(FlexView *q);
     virtual ~FlexViewPrivate();
 

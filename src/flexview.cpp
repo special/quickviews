@@ -275,14 +275,18 @@ void FlexView::setCurrentIndex(int index)
         d->currentSection = d->sectionOf(index);
         if (oldSection && d->currentSection != oldSection)
             oldSection->setCurrentIndex(-1);
-        // If the section doesn't exist yet, layout will create it and setCurrentIndex
         if (d->currentSection)
             d->currentSection->setCurrentIndex(d->currentSection->mapToSection(index));
-        // Layout will ensure that the section and item exist
-        d->layout();
-        Q_ASSERT(d->currentSection);
     } else if (oldSection)
         oldSection->setCurrentIndex(-1);
+
+    // Can't allow layout to recurse, so if setCurrentIndex is called during layout it
+    // will just schedule another one. That can lead to currentItem/currentSection being
+    // temporarily null.
+    if (!d->inLayout)
+        d->layout();
+    else
+        polish();
 
     emit currentIndexChanged();
     emit currentItemChanged();
@@ -405,7 +409,7 @@ void FlexViewPrivate::clear()
     moveId = -1;
     items.clear();
     for (FlexSection *section : sections)
-        delete section;
+        section->deleteLater();
     sections.clear();
     sectionRoleIdx = -1;
     sizeRoleIdx = -1;
@@ -462,6 +466,12 @@ void FlexViewPrivate::layout()
     if (!q->isComponentComplete())
         return;
 
+    if (inLayout) {
+        qCWarning(lcLayout) << "FlexView cannot run layout recursively";
+        return;
+    }
+    QScopedValueRollback guard(inLayout, true);
+
     applyPendingChanges();
     if (lcLayout().isDebugEnabled())
         validateSections();
@@ -507,7 +517,6 @@ void FlexViewPrivate::layout()
         QRectF sectionVisibleArea = sectionItem->contentItem()->mapRectFromItem(q->contentItem(), visibleArea);
         QRectF sectionCacheArea = sectionItem->contentItem()->mapRectFromItem(q->contentItem(), cacheArea);
         section->layoutDelegates(sectionVisibleArea, sectionCacheArea);
-        // XXX sectionItem can be released by layoutDelegates, although it will still exist right now
 
         y += sectionItem->item()->height();
     }
@@ -676,7 +685,7 @@ bool FlexViewPrivate::applyPendingChanges()
     for (int s = 0; s < sections.size(); s++) {
         FlexSection *section = sections[s];
         if (section->count == 0) {
-            delete section;
+            section->deleteLater();
             sections.removeAt(s);
             s--;
             continue;
@@ -685,7 +694,7 @@ bool FlexViewPrivate::applyPendingChanges()
         if (s > 0 && section->value == sections[s-1]->value) {
             FlexSection *prev = sections[s-1];
             prev->insert(prev->count, section->count);
-            delete section;
+            section->deleteLater();
             sections.removeAt(s);
             s--;
             continue;
