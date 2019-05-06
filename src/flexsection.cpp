@@ -14,6 +14,21 @@ Q_LOGGING_CATEGORY(lcFlexLayout, "crimson.flexview.layout.flex", QtWarningMsg)
 #define DEBUG_LAYOUT() if (false) qCDebug(lcFlexLayout)
 #endif
 
+struct ModelData
+{
+    DelegateRef delegate;
+    qreal size;
+
+    ModelData()
+        : size(0)
+    {
+    }
+
+    ModelData(const ModelData &) = delete;
+    ModelData &operator=(const ModelData &) = delete;
+    ModelData(ModelData &&) = default;
+};
+
 struct FlexRow
 {
     int start;
@@ -58,6 +73,7 @@ void FlexSection::clear()
     count = 0;
     currentIndex =- 1;
     layoutRows.clear();
+    m_data.clear();
     dirty = 0;
 }
 
@@ -84,13 +100,21 @@ void FlexSection::change(int i, int c)
     Q_ASSERT(i >= 0 && i < count);
     Q_ASSERT(c >= 0);
     Q_ASSERT(i+c <= count);
-    dirty |= DirtyFlag::Data;
+
+    for (int j = i; j < i+c; j++) {
+        ModelData &data = indexData(j);
+        qreal size = view->indexFlexRatio(mapToView(j));
+        if (size != data.size) {
+            data.size = size;
+            dirty |= DirtyFlag::Data;
+        }
+    }
 }
 
 void FlexSection::adjustIndex(int from, int delta)
 {
-    auto it = m_delegates.constEnd();
-    if (m_delegates.isEmpty() || (it-1).key() < from)
+    auto it = m_data.lower_bound(from);
+    if (!delta || it == m_data.end())
         return;
 
     if (currentIndex >= from) {
@@ -100,20 +124,29 @@ void FlexSection::adjustIndex(int from, int delta)
             currentIndex += delta;
     }
 
-    // QMap claims that inserting the largest item first is more efficient
-    QMap<int, DelegateRef> adjusted;
-    do {
-        it--;
-        int key = it.key();
-        if (key >= from) {
-            if (delta < 0 && from - key < delta)
-                continue;
-            key += delta;
+    if (delta > 0) {
+        auto first = it;
+        it = m_data.end();
+
+        for (;;) {
+            auto prev = it;
+            it--;
+            int nkey = it->first + delta;
+            m_data.insert(prev, std::move(*it));
+            if (it == first) {
+                m_data.erase(it);
+                break;
+            }
+            it = m_data.erase(it);
         }
-        adjusted.insert(adjusted.constBegin(), key, std::move(*it));
-    } while (it != m_delegates.constBegin());
-    Q_ASSERT(m_delegates.size() == adjusted.size());
-    m_delegates = adjusted;
+    } else {
+        while (it != m_data.end()) {
+            int nkey = it->first + delta;
+            if (nkey >= from)
+                m_data.insert(it, std::move(*it));
+            it = m_data.erase(it);
+        }
+    }
 }
 
 bool FlexSection::setViewportWidth(qreal width)
@@ -232,16 +265,22 @@ bool FlexSection::layout()
 
     DEBUG_LAYOUT() << "layout for section viewStart" << viewStart << "count" << count << "dirty" << dirty;
 
+    // XXX oof, this is redoing layout for every data change because the size role may have changed..
+    // a cache could save a lot of pain
+
     for (int i = 0; i < count; i++) {
-        qreal ratio = view->indexFlexRatio(mapToView(i));
-        if (!ratio)
-            ratio = 1;
+        auto &data = indexData(i);
+        if (!data.size) {
+            data.size = view->indexFlexRatio(mapToView(i));
+            if (!data.size)
+                data.size = 1;
+        }
 
         FlexRow addingRow(0);
         Q_ASSERT(!openRows.empty());
         for (auto it = openRows.begin(); it != openRows.end(); ) {
             FlexRow &candidate = *it;
-            candidate.ratio += ratio;
+            candidate.ratio += data.size;
             candidate.height = (viewportWidth - (hSpacing * (i - candidate.start))) / candidate.ratio;
             nAdditions++;
 
@@ -402,12 +441,10 @@ void FlexSection::layoutRow(const FlexRow &row, qreal y, bool create)
             x += hSpacing;
 
         int viewIndex = mapToView(i);
-        // XXX It's probably worth caching these.
-        double ratio = view->indexFlexRatio(viewIndex);
-        if (!ratio)
-            ratio = 1;
-        qreal width = ratio * row.height;
+        auto &data = indexData(i);
+        qreal width = data.size * row.height;
 
+        // XXX inefficient everywhere
         auto item = delegate(i, create);
         if (!item) {
             x += width;
@@ -437,7 +474,7 @@ int FlexSection::rowAt(qreal target) const
     return -1;
 }
 
-int FlexSection::rowIndexAt(int rowIndex, qreal target, bool nearest) const
+int FlexSection::rowIndexAt(int rowIndex, qreal target, bool nearest)
 {
     if (rowIndex < 0 || rowIndex >= layoutRows.size())
         return -1;
@@ -449,10 +486,8 @@ int FlexSection::rowIndexAt(int rowIndex, qreal target, bool nearest) const
             x += hSpacing;
 
         int viewIndex = mapToView(i);
-        double ratio = view->indexFlexRatio(viewIndex);
-        if (!ratio)
-            ratio = 1;
-        qreal width = ratio * row.height;
+        auto &data = indexData(i);
+        qreal width = data.size * row.height;
 
         if (target >= x && target < x + width) {
             return i;
@@ -469,7 +504,7 @@ int FlexSection::rowIndexAt(int rowIndex, qreal target, bool nearest) const
     return nearest ? row.end : -1;
 }
 
-int FlexSection::indexAt(const QPointF &pos) const
+int FlexSection::indexAt(const QPointF &pos)
 {
     return rowIndexAt(rowAt(pos.y()), pos.x());
 }
@@ -483,7 +518,7 @@ int FlexSection::rowForIndex(int index) const
     return std::distance(layoutRows.begin(), it);
 }
 
-QRectF FlexSection::geometryOf(int index) const
+QRectF FlexSection::geometryOf(int index)
 {
     int rowIndex = rowForIndex(index);
     if (rowIndex < 0)
@@ -499,12 +534,9 @@ QRectF FlexSection::geometryOf(int index) const
         if (i > row.start)
             geom.setX(geom.x() + hSpacing);
 
-        // XXX This needs to be cached and not copied everywhere
         int viewIndex = mapToView(i);
-        double ratio = view->indexFlexRatio(viewIndex);
-        if (!ratio)
-            ratio = 1;
-        qreal width = ratio * row.height;
+        auto &data = indexData(i);
+        qreal width = data.size * row.height;
         if (i == index) {
             geom.setWidth(width);
             break;
@@ -515,23 +547,35 @@ QRectF FlexSection::geometryOf(int index) const
     return geom;
 }
 
+ModelData &FlexSection::indexData(int index)
+{
+    Q_ASSERT(index >= 0);
+    Q_ASSERT(index < count);
+
+    auto it = m_data.lower_bound(index);
+    if (it != m_data.end() && it->first == index)
+        return it->second;
+
+    m_data.insert(it, std::make_pair(index, ModelData()));
+    it--;
+    Q_ASSERT(it->first == index);
+    return it->second;
+}
+
 DelegateRef FlexSection::delegate(int index, bool create)
 {
-    auto it = m_delegates.lowerBound(index);
-    if (it != m_delegates.end() && it.key() == index)
-        return *it;
-
-    DelegateRef ref;
-    if (!create) {
-        ref = view->items.item(mapToView(index));
-    } else {
-        // XXX AsyncIfNested, etc
-        ref = view->items.createItem(mapToView(index), view->delegate, m_sectionItem->contentItem(), QQmlIncubator::Synchronous);
+    auto &data = indexData(index);
+    if (!data.delegate) {
+        // XXX inefficient, queries unnecessarily, but things need reworking around delegates with this anyway
+        if (!create) {
+            data.delegate = view->items.item(mapToView(index));
+        } else {
+            // XXX AsyncIfNested, etc
+            data.delegate = view->items.createItem(mapToView(index), view->delegate, m_sectionItem->contentItem(), QQmlIncubator::Synchronous);
+        }
     }
 
-    if (ref)
-        m_delegates.insert(it, index, ref);
-    return ref;
+    return data.delegate;
 }
 
 void FlexSection::releaseSectionDelegate()
@@ -550,28 +594,27 @@ void FlexSection::releaseDelegates(int first, int last)
     Q_ASSERT(last < 0 || first <= last);
 
     int released = 0;
-    auto it = m_delegates.begin();
+    auto it = m_data.begin();
     if (first > 0)
-        it = m_delegates.lowerBound(first);
+        it = m_data.lower_bound(first);
 
-    while (it != m_delegates.end()) {
-        if (last >= 0 && it.key() > last)
+    for (; it != m_data.end(); it++) {
+        if (last >= 0 && it->first > last)
             break;
 
-        // It's not strictly necessary to keep the current item in m_delegates, since a ref
+        // It's not strictly necessary to keep the current item in ModelData, since a ref
         // is held by m_currentItem, but it's not a bad idea.
-        if (it.key() == currentIndex) {
-            it++;
+        if (it->first == currentIndex)
             continue;
-        }
 
-        it = m_delegates.erase(it);
-        released++;
+        if (it->second.delegate) {
+            it->second.delegate.reset();
+            released++;
+        }
     }
 
     if (released) {
         qCDebug(lcDelegate) << "released" << released << "delegates between" << first << "and" << last;
-        qCDebug(lcDelegate) << "remaining delegates:" << m_delegates.keys();
     }
 }
 

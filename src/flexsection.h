@@ -3,6 +3,7 @@
 #include "flexview_p.h"
 
 class FlexRow;
+class ModelData;
 class FlexSectionItem;
 
 class FlexSection : public QObject
@@ -64,10 +65,10 @@ public:
     qreal estimatedHeight() const;
     qreal contentHeight() const { return m_contentHeight; }
 
-    int indexAt(const QPointF &pos) const;
+    int indexAt(const QPointF &pos);
     int rowAt(qreal y) const;
-    int rowIndexAt(int row, qreal x, bool nearest = false) const;
-    QRectF geometryOf(int i) const;
+    int rowIndexAt(int row, qreal x, bool nearest = false);
+    QRectF geometryOf(int i);
 
     int rowForIndex(int index) const;
     int rowCount() const { return layoutRows.size(); }
@@ -78,7 +79,7 @@ public:
 private:
     FlexSectionItem *m_sectionItem = nullptr;
     QVector<FlexRow> layoutRows;
-    QMap<int, DelegateRef> m_delegates;
+    std::map<int, ModelData> m_data;
     DelegateRef m_currentItem;
     qreal viewportWidth = 0;
     qreal minHeight = 0;
@@ -98,6 +99,8 @@ private:
 
     DelegateRef delegate(int index, bool create);
     void releaseDelegates(int first = 0, int last = -1);
+
+    ModelData &indexData(int index);
 };
 QML_DECLARE_TYPEINFO(FlexSection, QML_HAS_ATTACHED_PROPERTIES)
 
