@@ -26,6 +26,23 @@ public:
         QMetaObject::activate(this, m_metaObject.get(), 0, nullptr);
     }
 
+    void dataChanged(const QVector<int> &r)
+    {
+        auto roles = r;
+        if (roles.isEmpty()) // XXX just enumerate properties instead
+            roles = m_mgr->m_rolePropertyMap.values().toVector();
+        for (int role : roles) {
+            int propId = m_mgr->m_rolePropertyMap.key(role);
+            if (propId >= 0) {
+                auto prop = m_metaObject->property(m_metaObject->propertyOffset() + propId);
+                int notifyIndex = prop.notifySignalIndex();
+                if (notifyIndex >= 0) {
+                    QMetaObject::activate(this, notifyIndex, nullptr);
+                }
+            }
+        }
+    }
+
     virtual const QMetaObject *metaObject() const override
     {
         return m_metaObject.data();
@@ -240,6 +257,14 @@ DelegateContextObject *DelegateManager::contextObject(QQuickItem *item)
         return ctxObject;
     }
     return nullptr;
+}
+
+void DelegateManager::dataChanged(int row, const QVector<int> &roles)
+{
+    auto ref = item(row);
+    if (ref) {
+        contextObject(ref.get())->dataChanged(roles);
+    }
 }
 
 void DelegateManager::clear()

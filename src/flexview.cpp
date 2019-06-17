@@ -446,6 +446,10 @@ void FlexViewPrivate::dataChanged(const QModelIndex &topLeft, const QModelIndex 
     int count = bottomRight.row() - topLeft.row() + 1;
     pendingChanges.change(topLeft.row(), count);
     q->polish();
+
+    for (int i = topLeft.row(); i <= bottomRight.row(); i++) {
+        items.dataChanged(i, roles);
+    }
 }
 
 void FlexViewPrivate::layoutChanged()

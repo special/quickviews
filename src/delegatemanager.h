@@ -11,6 +11,7 @@
 class QAbstractItemModel;
 
 typedef std::shared_ptr<QQuickItem> DelegateRef;
+class DelegateContextObject;
 
 class DelegateManager : public QObject
 {
@@ -31,6 +32,7 @@ public:
     void clear();
 
     void adjustIndex(int from, int delta);
+    void dataChanged(int row, const QVector<int> &roles);
 
 private:
     QMap<int, std::weak_ptr<QQuickItem>> m_items;
