@@ -42,6 +42,8 @@ private:
     bool createMetaObject();
     void release(QQuickItem *item);
     void cleanup();
+
+    DelegateContextObject *contextObject(QQuickItem *item);
 };
 
 Q_DECLARE_LOGGING_CATEGORY(lcDelegate)

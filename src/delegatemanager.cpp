@@ -31,6 +31,15 @@ public:
         return m_metaObject.data();
     }
 
+    virtual void *qt_metacast(const char *clname) override
+    {
+        if (!clname)
+            return nullptr;
+        if (!strcmp(clname, "DelegateContextObject"))
+            return static_cast<void*>(this);
+        return QObject::qt_metacast(clname);
+    }
+
     virtual int qt_metacall(QMetaObject::Call c, int id, void **argv) override
     {
         id = QObject::qt_metacall(c, id, argv);
@@ -90,6 +99,7 @@ bool DelegateManager::createMetaObject()
     Q_ASSERT(m_rolePropertyMap.isEmpty());
 
     QMetaObjectBuilder b;
+    b.setClassName("DelegateContextObject");
     {
         auto signal = b.addSignal("indexChanged()");
         Q_ASSERT(signal.index() == 0);
@@ -213,19 +223,23 @@ void DelegateManager::adjustIndex(int from, int delta)
         auto item = it.value().lock();
         if (!item)
             continue;
-        auto ctx = qmlContext(item.get());
-        Q_ASSERT(ctx);
-        if (ctx) {
-            auto ctxObject = qobject_cast<DelegateContextObject*>(ctx->contextObject());
-            Q_ASSERT(ctxObject);
-            if (ctxObject)
-                ctxObject->setIndex(key);
-        }
-
+        contextObject(item.get())->setIndex(key);
         adjusted.insert(adjusted.constBegin(), key, item);
     } while (it != m_items.constBegin());
 
     m_items = adjusted;
+}
+
+DelegateContextObject *DelegateManager::contextObject(QQuickItem *item)
+{
+    auto ctx = qmlContext(item)->parentContext();
+    Q_ASSERT(ctx);
+    if (ctx) {
+        auto ctxObject = qobject_cast<DelegateContextObject*>(ctx->contextObject());
+        Q_ASSERT(ctxObject);
+        return ctxObject;
+    }
+    return nullptr;
 }
 
 void DelegateManager::clear()
