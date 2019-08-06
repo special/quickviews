@@ -153,13 +153,12 @@ DelegateRef DelegateManager::createItem(int index, QQmlComponent *component, QQu
 
     // XXX Incubation
 
-    // XXX If a delegate moves between sections, this context isn't "correct", for whatever that means
     if (!createMetaObject()) {
         qCWarning(lcDelegate) << "Cannot create meta object for model";
         return nullptr;
     }
 
-    QQmlContext *context = new QQmlContext(qmlContext(parent));
+    QQmlContext *context = new QQmlContext(component->creationContext() ? component->creationContext() : qmlContext(parent));
     DelegateContextObject *ctxObject = new DelegateContextObject(this, m_dataMetaObject, index);
     context->setContextObject(ctxObject);
     context->setContextProperty("model", ctxObject);

@@ -442,7 +442,6 @@ void FlexViewPrivate::rowsMoved(const QModelIndex &parent, int start, int end, c
 
 void FlexViewPrivate::dataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QVector<int> &roles)
 {
-    Q_UNUSED(roles);
     int count = bottomRight.row() - topLeft.row() + 1;
     pendingChanges.change(topLeft.row(), count);
     q->polish();

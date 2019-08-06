@@ -629,8 +629,10 @@ FlexSectionItem *FlexSection::ensureItem()
 
     m_sectionItem = new FlexSectionItem(this);
 
-    Q_ASSERT(qmlContext(view->q));
-    QQmlContext *context = new QQmlContext(qmlContext(view->q), this);
+    QQmlContext *parentContext = view->sectionDelegate->creationContext();
+    if (!parentContext)
+        parentContext = qmlContext(view->q);
+    QQmlContext *context = new QQmlContext(parentContext, this);
     context->setContextProperty("_flexsection", QVariant::fromValue(this));
 
     QVariantMap properties{{"name", value}};
