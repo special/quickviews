@@ -4,7 +4,7 @@ TARGETPATH = Crimson/Views
 IMPORT_VERSION = 1.0
 
 CONFIG += qt
-QT += qml quick qml-private quick-private
+QT += qml quick qml-private quick-private qmlmodels-private
 
 SOURCES += \
     src/plugin.cpp \

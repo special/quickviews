@@ -6,6 +6,26 @@ class FlexRow;
 class ModelData;
 class FlexSectionItem;
 
+struct FlexRow
+{
+    int start;
+    int end; // inclusive
+    // XXX could make this double as a useful value (y?) after layout
+    int prev; // only meaningful _during_ layout
+    qreal ratio;
+    qreal height;
+    qreal cost;
+
+    FlexRow() = default;
+    FlexRow(int start)
+        : start(start), end(-1), prev(-1), ratio(0), height(0), cost(0)
+    {
+    }
+};
+Q_STATIC_ASSERT(!QTypeInfo<FlexRow>::isComplex);
+Q_STATIC_ASSERT(QTypeInfo<FlexRow>::isRelocatable);
+
+
 class FlexSection : public QObject
 {
     Q_OBJECT

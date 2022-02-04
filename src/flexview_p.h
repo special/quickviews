@@ -4,7 +4,7 @@
 #include "delegatemanager.h"
 #include <QPointer>
 #include <QLoggingCategory>
-#include <QtQml/private/qqmlchangeset_p.h>
+#include <QtQmlModels/private/qqmlchangeset_p.h>
 #include <QtQml/private/qqmlguard_p.h>
 #include <QtQuick/private/qquickitemchangelistener_p.h>
 

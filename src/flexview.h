@@ -89,7 +89,12 @@ signals:
 protected:
     virtual void componentComplete() override;
     virtual void updatePolish() override;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    virtual void geometryChange(const QRectF &newRect, const QRectF &oldRect) override;
+#else
     virtual void geometryChanged(const QRectF &newRect, const QRectF &oldRect) override;
+#endif
+
     virtual void viewportMoved(Qt::Orientations orient) override;
 
 private:

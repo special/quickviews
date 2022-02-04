@@ -111,7 +111,7 @@ void DelegateManager::setModel(QAbstractItemModel *model)
 bool DelegateManager::createMetaObject()
 {
     if (!m_model || m_dataMetaObject)
-        return m_dataMetaObject;
+        return !m_dataMetaObject.isNull();
     auto roles = m_model->roleNames();
     Q_ASSERT(m_rolePropertyMap.isEmpty());
 

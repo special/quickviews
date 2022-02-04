@@ -29,28 +29,6 @@ struct ModelData
     ModelData(ModelData &&) = default;
 };
 
-struct FlexRow
-{
-    int start;
-    int end; // inclusive
-    // XXX could make this double as a useful value (y?) after layout
-    int prev; // only meaningful _during_ layout
-    qreal ratio;
-    qreal height;
-    qreal cost;
-
-    FlexRow() = default;
-    FlexRow(int start)
-        : start(start), end(-1), prev(-1), ratio(0), height(0), cost(0)
-    {
-    }
-};
-
-// Q_DECLARE_TYPEINFO only necessary for Qt < 5.11
-Q_DECLARE_TYPEINFO(FlexRow, Q_PRIMITIVE_TYPE | Q_MOVABLE_TYPE | Q_RELOCATABLE_TYPE);
-Q_STATIC_ASSERT(!QTypeInfo<FlexRow>::isComplex);
-Q_STATIC_ASSERT(QTypeInfo<FlexRow>::isRelocatable);
-
 FlexSection::FlexSection(FlexViewPrivate *view, const QString &value)
     : QObject(view)
     , view(view)
@@ -74,7 +52,7 @@ void FlexSection::clear()
     currentIndex =- 1;
     layoutRows.clear();
     m_data.clear();
-    dirty = 0;
+    dirty = {};
 }
 
 void FlexSection::insert(int i, int c)
@@ -359,7 +337,7 @@ bool FlexSection::layout()
     if (dirty & DirtyFlag::Indices && m_sectionItem)
         emit m_sectionItem->countChanged();
 
-    dirty = 0;
+    dirty = {};
     return true;
 }
 

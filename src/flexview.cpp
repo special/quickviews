@@ -368,10 +368,17 @@ void FlexView::updatePolish()
     d->layout();
 }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+void FlexView::geometryChange(const QRectF &newRect, const QRectF &oldRect)
+{
+    QQuickFlickable::geometryChange(newRect, oldRect);
+#else
 void FlexView::geometryChanged(const QRectF &newRect, const QRectF &oldRect)
 {
-    qCDebug(lcView) << "geometryChanged" << newRect << oldRect;
     QQuickFlickable::geometryChanged(newRect, oldRect);
+#endif
+    qCDebug(lcView) << "geometryChanged" << newRect << oldRect;
+
     if (newRect.size() != oldRect.size())
         polish();
 }
